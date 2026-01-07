@@ -151,6 +151,11 @@ defmodule ClaudeAgentSdk.Errors do
     """
     defexception [:message, :data]
 
+    @type t :: %__MODULE__{
+            message: String.t(),
+            data: term()
+          }
+
     @impl true
     def exception(opts) when is_list(opts) do
       message = Keyword.get(opts, :message, "Failed to parse message")

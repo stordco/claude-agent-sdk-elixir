@@ -199,7 +199,7 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
   end
 
   @impl true
-  def handle_call(:initialize, _from, state) do
+  def handle_call(:initialize, from, state) do
     # Build hooks configuration
     {hooks_config, callback_map} = build_hooks_config(state.options.hooks, state.next_callback_id)
 
@@ -209,19 +209,20 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
       "hooks" => if(hooks_config == %{}, do: nil, else: hooks_config)
     }
 
-    # Send and wait for response
-    case send_control_request(state, request, @initialize_timeout) do
-      {:ok, response, new_state} ->
-        new_state = %{
-          new_state
-          | initialized: true,
-            hook_callbacks: Map.merge(state.hook_callbacks, callback_map),
-            next_callback_id: state.next_callback_id + map_size(callback_map)
-        }
+    # Store hook callbacks now (will be needed when response arrives)
+    new_state = %{
+      state
+      | hook_callbacks: Map.merge(state.hook_callbacks, callback_map),
+        next_callback_id: state.next_callback_id + map_size(callback_map)
+    }
 
-        {:reply, {:ok, response}, new_state}
+    # Send control request and wait asynchronously
+    case send_control_request_async(new_state, request, from, @initialize_timeout) do
+      {:ok, updated_state} ->
+        # Mark as initialized (optimistically - if it fails, client handles the error)
+        {:noreply, %{updated_state | initialized: true}}
 
-      {:error, reason, new_state} ->
+      {:error, reason} ->
         {:reply, {:error, reason}, new_state}
     end
   end
@@ -253,16 +254,16 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
     end
   end
 
-  def handle_call(:interrupt, _from, state) do
+  def handle_call(:interrupt, from, state) do
     request = %{"subtype" => "interrupt"}
 
-    case send_control_request(state, request, @default_timeout) do
-      {:ok, _response, new_state} -> {:reply, :ok, new_state}
-      {:error, reason, new_state} -> {:reply, {:error, reason}, new_state}
+    case send_control_request_async(state, request, from, @default_timeout) do
+      {:ok, updated_state} -> {:noreply, updated_state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
 
-  def handle_call({:set_permission_mode, mode}, _from, state) do
+  def handle_call({:set_permission_mode, mode}, from, state) do
     mode_str =
       case mode do
         :default -> "default"
@@ -273,27 +274,27 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
 
     request = %{"subtype" => "set_permission_mode", "mode" => mode_str}
 
-    case send_control_request(state, request, @default_timeout) do
-      {:ok, _response, new_state} -> {:reply, :ok, new_state}
-      {:error, reason, new_state} -> {:reply, {:error, reason}, new_state}
+    case send_control_request_async(state, request, from, @default_timeout) do
+      {:ok, updated_state} -> {:noreply, updated_state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
 
-  def handle_call({:set_model, model}, _from, state) do
+  def handle_call({:set_model, model}, from, state) do
     request = %{"subtype" => "set_model", "model" => model}
 
-    case send_control_request(state, request, @default_timeout) do
-      {:ok, _response, new_state} -> {:reply, :ok, new_state}
-      {:error, reason, new_state} -> {:reply, {:error, reason}, new_state}
+    case send_control_request_async(state, request, from, @default_timeout) do
+      {:ok, updated_state} -> {:noreply, updated_state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
 
-  def handle_call({:rewind_files, user_message_id}, _from, state) do
+  def handle_call({:rewind_files, user_message_id}, from, state) do
     request = %{"subtype" => "rewind_files", "user_message_id" => user_message_id}
 
-    case send_control_request(state, request, @default_timeout) do
-      {:ok, _response, new_state} -> {:reply, :ok, new_state}
-      {:error, reason, new_state} -> {:reply, {:error, reason}, new_state}
+    case send_control_request_async(state, request, from, @default_timeout) do
+      {:ok, updated_state} -> {:noreply, updated_state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
 
@@ -313,6 +314,19 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
     Logger.error("Transport error: #{inspect(error)}")
     new_state = deliver_message({:error, error}, state)
     {:noreply, %{new_state | closed: true}}
+  end
+
+  def handle_info({:control_timeout, request_id}, state) do
+    case Map.pop(state.pending_requests, request_id) do
+      {nil, _} ->
+        # Request already handled, ignore timeout
+        {:noreply, state}
+
+      {{from, _timeout_ref}, new_pending} ->
+        # Reply with timeout error
+        GenServer.reply(from, {:error, "Control request timeout"})
+        {:noreply, %{state | pending_requests: new_pending}}
+    end
   end
 
   def handle_info(msg, state) do
@@ -378,7 +392,10 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
         Logger.warning("Received response for unknown request: #{request_id}")
         state
 
-      {{from, _timeout_ref}, pending} ->
+      {{from, timeout_ref}, pending} ->
+        # Cancel the timeout timer
+        Process.cancel_timer(timeout_ref)
+
         result =
           case Map.get(response, "subtype") do
             "error" ->
@@ -549,7 +566,10 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
     end
   end
 
-  defp send_control_request(state, request, timeout) do
+  # Send a control request and register the caller to receive the response asynchronously.
+  # Returns {:ok, new_state} on success (response will be sent via GenServer.reply later),
+  # or {:error, reason} if the write fails.
+  defp send_control_request_async(state, request, from, timeout) do
     # Generate unique request ID
     request_id = "req_#{state.request_counter}_#{:crypto.strong_rand_bytes(4) |> Base.encode16()}"
 
@@ -563,27 +583,16 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
 
     case SubprocessCli.write(state.transport, json) do
       :ok ->
-        # Wait for response
-        receive do
-          {:transport_message,
-           %{"type" => "control_response", "response" => %{"request_id" => ^request_id} = resp}} ->
-            case Map.get(resp, "subtype") do
-              "error" ->
-                {:error, Map.get(resp, "error", "Unknown error"),
-                 %{state | request_counter: state.request_counter + 1}}
+        # Schedule a timeout
+        timeout_ref = Process.send_after(self(), {:control_timeout, request_id}, timeout)
 
-              _ ->
-                {:ok, Map.get(resp, "response", %{}),
-                 %{state | request_counter: state.request_counter + 1}}
-            end
-        after
-          timeout ->
-            {:error, "Control request timeout: #{Map.get(request, "subtype")}",
-             %{state | request_counter: state.request_counter + 1}}
-        end
+        # Store the pending request with the caller and timeout ref
+        new_pending = Map.put(state.pending_requests, request_id, {from, timeout_ref})
+
+        {:ok, %{state | pending_requests: new_pending, request_counter: state.request_counter + 1}}
 
       {:error, reason} ->
-        {:error, reason, state}
+        {:error, reason}
     end
   end
 

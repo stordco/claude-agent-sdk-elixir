@@ -153,18 +153,31 @@ defmodule ClaudeAgentSdk.Client do
   """
   @spec receive_response(t()) :: Enumerable.t()
   def receive_response(client) do
-    receive_messages(client)
-    |> Stream.transform(nil, fn
-      message, _acc ->
-        case message do
-          %ClaudeAgentSdk.Types.Messages.ResultMessage{} ->
-            {[message], :halt}
+    Stream.resource(
+      fn -> {client, false} end,
+      fn
+        {_client, true} ->
+          # Already received result, halt
+          {:halt, nil}
 
-          other ->
-            {[other], nil}
-        end
-    end)
-    |> Stream.take_while(fn _ -> true end)
+        {client, false} ->
+          case GenServer.call(client, :receive_message, :infinity) do
+            {:ok, %ClaudeAgentSdk.Types.Messages.ResultMessage{} = msg} ->
+              # Emit result and mark for halt on next iteration
+              {[msg], {client, true}}
+
+            {:ok, message} ->
+              {[message], {client, false}}
+
+            :done ->
+              {:halt, nil}
+
+            {:error, _reason} ->
+              {:halt, nil}
+          end
+      end,
+      fn _ -> :ok end
+    )
   end
 
   @doc """

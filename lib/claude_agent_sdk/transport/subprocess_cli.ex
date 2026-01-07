@@ -735,51 +735,12 @@ defmodule ClaudeAgentSdk.Transport.SubprocessCli do
   defp setting_source_to_string(:project), do: "project"
   defp setting_source_to_string(:local), do: "local"
 
-  # Wrap the CLI command with 'script' to allocate a PTY.
-  # The Claude CLI (Node.js) requires a TTY to properly write to stdout.
-  # On macOS: script -q /dev/null <command> <args...>
-  # On Linux: script -q -c "<command> <args...>" /dev/null
-  # On Windows: No wrapping needed (or not supported)
+  # NOTE: PTY wrapping is NOT needed for the SDK.
+  # When using --output-format stream-json and --input-format stream-json,
+  # the CLI works correctly without a TTY. PTY wrapping actually causes problems
+  # because it makes the CLI think it's running interactively and shows prompts.
   defp wrap_with_pty(cli_path, args) do
-    case :os.type() do
-      {:unix, :darwin} ->
-        # macOS: script -q /dev/null <command> <args...>
-        script_path = find_script_command()
-
-        if script_path do
-          {script_path, ["-q", "/dev/null", cli_path | args]}
-        else
-          # Fall back to direct execution if script not found
-          Logger.warning("'script' command not found - CLI may not work properly without TTY")
-          {cli_path, args}
-        end
-
-      {:unix, _} ->
-        # Linux: script -q -c "<full command>" /dev/null
-        script_path = find_script_command()
-
-        if script_path do
-          # Build the full command string for -c option
-          full_cmd = Enum.join([cli_path | args], " ")
-          {script_path, ["-q", "-c", full_cmd, "/dev/null"]}
-        else
-          Logger.warning("'script' command not found - CLI may not work properly without TTY")
-          {cli_path, args}
-        end
-
-      {:win32, _} ->
-        # Windows doesn't need PTY wrapping (or has different mechanisms)
-        {cli_path, args}
-    end
-  end
-
-  defp find_script_command do
-    # Common locations for 'script' command
-    paths = ["/usr/bin/script", "/bin/script"]
-
-    Enum.find(paths, fn path ->
-      File.exists?(path) and File.regular?(path)
-    end)
+    {cli_path, args}
   end
 
   defp build_port_options(%__MODULE__{} = transport, _executable, args) do

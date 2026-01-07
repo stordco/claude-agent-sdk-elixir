@@ -107,11 +107,56 @@ Content blocks within AssistantMessage:
 - `ToolUseBlock` - Tool invocation
 - `ToolResultBlock` - Tool result
 
+## Interactive Client
+
+For multi-turn conversations with full control:
+
+```elixir
+alias ClaudeAgentSdk.Client
+alias ClaudeAgentSdk.Options
+alias ClaudeAgentSdk.Types.Messages.{AssistantMessage, ResultMessage}
+alias ClaudeAgentSdk.Types.ContentBlocks.TextBlock
+
+# Start client
+{:ok, client} = Client.start_link(%Options{permission_mode: :bypass_permissions})
+
+# Send first message
+:ok = Client.query(client, "My name is Alice. Remember this.")
+client |> Client.receive_response() |> Enum.to_list()
+
+# Follow-up message - Claude remembers context
+:ok = Client.query(client, "What is my name?")
+messages = client |> Client.receive_response() |> Enum.to_list()
+
+# Extract text from response
+text = messages
+|> Enum.filter(&match?(%AssistantMessage{}, &1))
+|> Enum.flat_map(& &1.content)
+|> Enum.filter(&match?(%TextBlock{}, &1))
+|> Enum.map(& &1.text)
+|> Enum.join(" ")
+
+IO.puts(text)  # => "Your name is Alice!"
+
+# Cleanup
+Client.disconnect(client)
+```
+
+### Client API
+
+- `Client.start_link/2` - Start a new client
+- `Client.connect/1` - Explicitly connect (optional, happens automatically)
+- `Client.query/2` - Send a message
+- `Client.receive_response/1` - Stream messages until result
+- `Client.receive_messages/1` - Stream all messages continuously
+- `Client.interrupt/1` - Interrupt current operation
+- `Client.get_server_info/1` - Get available commands and capabilities
+- `Client.disconnect/1` - Close the connection
+
 ## Advanced Features (Work in Progress)
 
 The following features are implemented but still being refined:
 
-- **Interactive Client** - Multi-turn conversations via `ClaudeAgentSdk.Client`
 - **Hooks** - Intercept and modify tool usage
 - **MCP Servers** - In-process MCP servers with custom tools
 - **Tool Permissions** - Programmatic permission callbacks
