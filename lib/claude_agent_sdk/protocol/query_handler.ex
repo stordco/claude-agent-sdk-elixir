@@ -217,13 +217,14 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
     }
 
     # Send control request and wait asynchronously
-    case send_control_request_async(new_state, request, from, @initialize_timeout) do
+    case send_control_request_async(new_state, request, from, @initialize_timeout, :initialize) do
       {:ok, updated_state} ->
-        # Mark as initialized (optimistically - if it fails, client handles the error)
-        {:noreply, %{updated_state | initialized: true}}
+        # Don't set initialized yet - will be set when response arrives
+        {:noreply, updated_state}
 
       {:error, reason} ->
-        {:reply, {:error, reason}, new_state}
+        # On error, return original state (don't keep hook callbacks)
+        {:reply, {:error, reason}, state}
     end
   end
 
@@ -322,7 +323,7 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
         # Request already handled, ignore timeout
         {:noreply, state}
 
-      {{from, _timeout_ref}, new_pending} ->
+      {{from, _timeout_ref, _request_type}, new_pending} ->
         # Reply with timeout error
         GenServer.reply(from, {:error, "Control request timeout"})
         {:noreply, %{state | pending_requests: new_pending}}
@@ -392,7 +393,7 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
         Logger.warning("Received response for unknown request: #{request_id}")
         state
 
-      {{from, timeout_ref}, pending} ->
+      {{from, timeout_ref, request_type}, pending} ->
         # Cancel the timeout timer
         Process.cancel_timer(timeout_ref)
 
@@ -409,7 +410,18 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
           end
 
         GenServer.reply(from, result)
-        %{state | pending_requests: pending}
+
+        # Update state based on request type and result
+        new_state = %{state | pending_requests: pending}
+
+        case {request_type, result} do
+          {:initialize, {:ok, _}} ->
+            # Mark as initialized only on successful initialize response
+            %{new_state | initialized: true}
+
+          _ ->
+            new_state
+        end
     end
   end
 
@@ -569,7 +581,8 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
   # Send a control request and register the caller to receive the response asynchronously.
   # Returns {:ok, new_state} on success (response will be sent via GenServer.reply later),
   # or {:error, reason} if the write fails.
-  defp send_control_request_async(state, request, from, timeout) do
+  # The optional `request_type` parameter can be used to track special requests like :initialize.
+  defp send_control_request_async(state, request, from, timeout, request_type \\ nil) do
     # Generate unique request ID
     request_id = "req_#{state.request_counter}_#{:crypto.strong_rand_bytes(4) |> Base.encode16()}"
 
@@ -586,8 +599,8 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
         # Schedule a timeout
         timeout_ref = Process.send_after(self(), {:control_timeout, request_id}, timeout)
 
-        # Store the pending request with the caller and timeout ref
-        new_pending = Map.put(state.pending_requests, request_id, {from, timeout_ref})
+        # Store the pending request with the caller, timeout ref, and optional type
+        new_pending = Map.put(state.pending_requests, request_id, {from, timeout_ref, request_type})
 
         {:ok, %{state | pending_requests: new_pending, request_counter: state.request_counter + 1}}
 
