@@ -91,9 +91,10 @@ defmodule ClaudeAgentSdk.Transport.SubprocessCli do
 
     {args, temp_files} = build_command(transport)
 
-    # On Unix systems, wrap CLI with 'script' to allocate a PTY.
-    # The Claude CLI requires a TTY to properly write to stdout.
-    {executable, final_args} = wrap_with_pty(transport.cli_path, args)
+    # On Unix systems, wrap CLI with 'script' to allocate a PTY when using --print mode.
+    # The Claude CLI requires a TTY to properly write to stdout in print mode.
+    # In streaming mode (--input-format stream-json), PTY is NOT needed and causes issues.
+    {executable, final_args} = wrap_with_pty(transport, args)
     port_opts = build_port_options(transport, executable, final_args)
 
     try do
@@ -735,12 +736,50 @@ defmodule ClaudeAgentSdk.Transport.SubprocessCli do
   defp setting_source_to_string(:project), do: "project"
   defp setting_source_to_string(:local), do: "local"
 
-  # NOTE: PTY wrapping is NOT needed for the SDK.
-  # When using --output-format stream-json and --input-format stream-json,
-  # the CLI works correctly without a TTY. PTY wrapping actually causes problems
-  # because it makes the CLI think it's running interactively and shows prompts.
-  defp wrap_with_pty(cli_path, args) do
+  # PTY wrapping is only needed for --print mode (when prompt is not nil).
+  # In streaming mode (--input-format stream-json), PTY is NOT needed and causes
+  # problems because it makes the CLI think it's running interactively.
+  defp wrap_with_pty(%__MODULE__{prompt: nil, cli_path: cli_path}, args) do
+    # Streaming mode - no PTY needed
     {cli_path, args}
+  end
+
+  defp wrap_with_pty(%__MODULE__{cli_path: cli_path}, args) do
+    # Print mode - needs PTY for CLI to write to stdout properly
+    case :os.type() do
+      {:unix, :darwin} ->
+        # macOS: script -q /dev/null <command> <args...>
+        script_path = find_script_command()
+
+        if script_path do
+          {script_path, ["-q", "/dev/null", cli_path | args]}
+        else
+          Logger.warning("'script' command not found - CLI may not work properly without TTY")
+          {cli_path, args}
+        end
+
+      {:unix, _} ->
+        # Linux: script -q -c "<full command>" /dev/null
+        script_path = find_script_command()
+
+        if script_path do
+          # Build the full command string for -c option
+          full_cmd = Enum.join([cli_path | args], " ")
+          {script_path, ["-q", "-c", full_cmd, "/dev/null"]}
+        else
+          Logger.warning("'script' command not found - CLI may not work properly without TTY")
+          {cli_path, args}
+        end
+
+      {:win32, _} ->
+        # Windows doesn't need PTY wrapping
+        {cli_path, args}
+    end
+  end
+
+  defp find_script_command do
+    paths = ["/usr/bin/script", "/bin/script"]
+    Enum.find(paths, &(File.exists?(&1) and File.regular?(&1)))
   end
 
   defp build_port_options(%__MODULE__{} = transport, _executable, args) do
