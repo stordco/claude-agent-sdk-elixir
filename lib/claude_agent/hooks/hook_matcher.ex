@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Hooks.HookMatcher do
+defmodule ClaudeAgent.Hooks.HookMatcher do
   @moduledoc """
   Hook matcher configuration for Claude SDK.
 

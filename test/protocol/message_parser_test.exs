@@ -1,10 +1,10 @@
-defmodule ClaudeAgentSdk.Protocol.MessageParserTest do
+defmodule ClaudeAgent.Protocol.MessageParserTest do
   use ExUnit.Case
 
-  alias ClaudeAgentSdk.Errors.MessageParseError
-  alias ClaudeAgentSdk.Protocol.MessageParser
-  alias ClaudeAgentSdk.Types.ContentBlocks.{TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock}
-  alias ClaudeAgentSdk.Types.Messages.{AssistantMessage, ResultMessage, SystemMessage, UserMessage}
+  alias ClaudeAgent.Errors.MessageParseError
+  alias ClaudeAgent.Protocol.MessageParser
+  alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock}
+  alias ClaudeAgent.Types.Messages.{AssistantMessage, ResultMessage, SystemMessage, UserMessage}
 
   describe "parse/1 user messages" do
     test "parses valid user message with string content" do

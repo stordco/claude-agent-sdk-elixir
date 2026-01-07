@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Client do
+defmodule ClaudeAgent.Client do
   @moduledoc """
   Stateful client for bidirectional conversations with Claude.
 
@@ -71,9 +71,9 @@ defmodule ClaudeAgentSdk.Client do
 
   require Logger
 
-  alias ClaudeAgentSdk.Options
-  alias ClaudeAgentSdk.Protocol.{MessageParser, QueryHandler}
-  alias ClaudeAgentSdk.Transport.SubprocessCli
+  alias ClaudeAgent.Options
+  alias ClaudeAgent.Protocol.{MessageParser, QueryHandler}
+  alias ClaudeAgent.Transport.SubprocessCli
 
   @type t :: pid()
 
@@ -92,7 +92,7 @@ defmodule ClaudeAgentSdk.Client do
 
   ## Options
 
-  - `options` - `ClaudeAgentSdk.Options` struct (default: empty options)
+  - `options` - `ClaudeAgent.Options` struct (default: empty options)
   - GenServer options like `name`, `timeout`, etc.
 
   ## Examples
@@ -162,7 +162,7 @@ defmodule ClaudeAgentSdk.Client do
 
         {client, false} ->
           case GenServer.call(client, :receive_message, :infinity) do
-            {:ok, %ClaudeAgentSdk.Types.Messages.ResultMessage{} = msg} ->
+            {:ok, %ClaudeAgent.Types.Messages.ResultMessage{} = msg} ->
               # Emit result and mark for halt on next iteration
               {[msg], {client, true}}
 

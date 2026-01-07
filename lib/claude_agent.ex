@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk do
+defmodule ClaudeAgent do
   @moduledoc """
   Claude Agent SDK for Elixir.
 
@@ -9,7 +9,7 @@ defmodule ClaudeAgentSdk do
   ## Quick Start
 
       # Simple query
-      ClaudeAgentSdk.query("What is 2 + 2?")
+      ClaudeAgent.query("What is 2 + 2?")
       |> Stream.each(fn message ->
         case message do
           %AssistantMessage{content: blocks} ->
@@ -24,7 +24,7 @@ defmodule ClaudeAgentSdk do
 
   ## With Options
 
-      alias ClaudeAgentSdk.Options
+      alias ClaudeAgent.Options
 
       opts = %Options{
         system_prompt: "You are a helpful assistant",
@@ -32,20 +32,20 @@ defmodule ClaudeAgentSdk do
         max_turns: 5
       }
 
-      ClaudeAgentSdk.query("Tell me a joke", opts)
+      ClaudeAgent.query("Tell me a joke", opts)
 
   ## Interactive Client
 
   For multi-turn conversations and advanced features:
 
-      {:ok, client} = ClaudeAgentSdk.Client.start_link()
-      :ok = ClaudeAgentSdk.Client.query(client, "Hello")
+      {:ok, client} = ClaudeAgent.Client.start_link()
+      :ok = ClaudeAgent.Client.query(client, "Hello")
 
       client
-      |> ClaudeAgentSdk.Client.receive_response()
+      |> ClaudeAgent.Client.receive_response()
       |> Enum.each(&IO.inspect/1)
 
-      ClaudeAgentSdk.Client.disconnect(client)
+      ClaudeAgent.Client.disconnect(client)
 
   ## Message Types
 
@@ -57,13 +57,13 @@ defmodule ClaudeAgentSdk do
   - `ResultMessage` - Final result with cost info
   - `StreamEvent` - Partial updates (when enabled)
 
-  See `ClaudeAgentSdk.Types.Messages` for details.
+  See `ClaudeAgent.Types.Messages` for details.
 
   ## MCP Servers
 
   You can provide in-process MCP servers:
 
-      calculator = ClaudeAgentSdk.create_sdk_mcp_server("calculator",
+      calculator = ClaudeAgent.create_sdk_mcp_server("calculator",
         tools: [add_tool, subtract_tool]
       )
 
@@ -73,9 +73,9 @@ defmodule ClaudeAgentSdk do
       }
   """
 
-  alias ClaudeAgentSdk.{Options, Query}
-  alias ClaudeAgentSdk.Types.Messages.{AssistantMessage, ResultMessage}
-  alias ClaudeAgentSdk.Types.ContentBlocks.TextBlock
+  alias ClaudeAgent.{Options, Query}
+  alias ClaudeAgent.Types.Messages.{AssistantMessage, ResultMessage}
+  alias ClaudeAgent.Types.ContentBlocks.TextBlock
 
   @version Mix.Project.config()[:version] || "0.1.0"
 
@@ -89,12 +89,12 @@ defmodule ClaudeAgentSdk do
   Execute a one-shot query and return a stream of messages.
 
   This is the simplest way to interact with Claude. For more control,
-  use `ClaudeAgentSdk.Client`.
+  use `ClaudeAgent.Client`.
 
   ## Parameters
 
   - `prompt` - The prompt to send to Claude
-  - `options` - Optional `ClaudeAgentSdk.Options` struct
+  - `options` - Optional `ClaudeAgent.Options` struct
 
   ## Returns
 
@@ -103,17 +103,17 @@ defmodule ClaudeAgentSdk do
   ## Examples
 
       # Basic query
-      ClaudeAgentSdk.query("What is the capital of France?")
+      ClaudeAgent.query("What is the capital of France?")
       |> Enum.each(&IO.inspect/1)
 
       # With options
       opts = %Options{system_prompt: "Be concise", max_turns: 1}
-      ClaudeAgentSdk.query("Explain Elixir", opts)
+      ClaudeAgent.query("Explain Elixir", opts)
       |> Stream.filter(&match?(%AssistantMessage{}, &1))
       |> Enum.each(&print_response/1)
 
       # Get just the text response
-      ClaudeAgentSdk.query("Hello!")
+      ClaudeAgent.query("Hello!")
       |> get_text_response()
 
   ## Error Handling
@@ -136,7 +136,7 @@ defmodule ClaudeAgentSdk do
 
   ## Examples
 
-      text = ClaudeAgentSdk.query_text("What is 2+2?")
+      text = ClaudeAgent.query_text("What is 2+2?")
       # => "2 + 2 = 4"
   """
   @spec query_text(String.t(), Options.t() | nil) :: String.t()
@@ -163,7 +163,7 @@ defmodule ClaudeAgentSdk do
 
   ## Examples
 
-      result = ClaudeAgentSdk.query_result("Do something")
+      result = ClaudeAgent.query_result("Do something")
       IO.puts("Cost: $\#{result.total_cost_usd}")
   """
   @spec query_result(String.t(), Options.t() | nil) :: ResultMessage.t() | nil
@@ -174,5 +174,5 @@ defmodule ClaudeAgentSdk do
   end
 
   # Re-exports for convenience
-  defdelegate create_sdk_mcp_server(name, opts \\ []), to: ClaudeAgentSdk.Mcp.Server, as: :new
+  defdelegate create_sdk_mcp_server(name, opts \\ []), to: ClaudeAgent.Mcp.Server, as: :new
 end

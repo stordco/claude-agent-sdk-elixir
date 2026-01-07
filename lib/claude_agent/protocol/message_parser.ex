@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Protocol.MessageParser do
+defmodule ClaudeAgent.Protocol.MessageParser do
   @moduledoc """
   Parser for Claude SDK messages from CLI output.
 
@@ -14,10 +14,10 @@ defmodule ClaudeAgentSdk.Protocol.MessageParser do
       {:error, %MessageParseError{...}}
   """
 
-  alias ClaudeAgentSdk.Errors.MessageParseError
-  alias ClaudeAgentSdk.Types.ContentBlocks
+  alias ClaudeAgent.Errors.MessageParseError
+  alias ClaudeAgent.Types.ContentBlocks
 
-  alias ClaudeAgentSdk.Types.Messages.{
+  alias ClaudeAgent.Types.Messages.{
     AssistantMessage,
     ResultMessage,
     StreamEvent,
@@ -25,7 +25,7 @@ defmodule ClaudeAgentSdk.Protocol.MessageParser do
     UserMessage
   }
 
-  @type message :: ClaudeAgentSdk.Types.Messages.message()
+  @type message :: ClaudeAgent.Types.Messages.message()
 
   @doc """
   Parse a message from CLI output into a typed struct.

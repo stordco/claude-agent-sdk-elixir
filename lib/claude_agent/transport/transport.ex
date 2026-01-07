@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Transport do
+defmodule ClaudeAgent.Transport do
   @moduledoc """
   Behaviour for transport implementations.
 
@@ -17,7 +17,7 @@ defmodule ClaudeAgentSdk.Transport do
   ## Implementing a Transport
 
       defmodule MyTransport do
-        @behaviour ClaudeAgentSdk.Transport
+        @behaviour ClaudeAgent.Transport
 
         defstruct [:connection]
 

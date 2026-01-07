@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Types.Messages do
+defmodule ClaudeAgent.Types.Messages do
   @moduledoc """
   Message type definitions for Claude SDK.
 
@@ -28,7 +28,7 @@ defmodule ClaudeAgentSdk.Types.Messages do
       end
   """
 
-  alias ClaudeAgentSdk.Types.ContentBlocks
+  alias ClaudeAgent.Types.ContentBlocks
 
   defmodule UserMessage do
     @moduledoc """

@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Options do
+defmodule ClaudeAgent.Options do
   @moduledoc """
   Configuration options for Claude Agent SDK queries.
 
@@ -8,13 +8,13 @@ defmodule ClaudeAgentSdk.Options do
   ## Basic Usage
 
       # Simple options
-      opts = %ClaudeAgentSdk.Options{
+      opts = %ClaudeAgent.Options{
         system_prompt: "You are a helpful assistant",
         max_turns: 5
       }
 
       # With tools
-      opts = %ClaudeAgentSdk.Options{
+      opts = %ClaudeAgent.Options{
         allowed_tools: ["Read", "Write", "Bash"],
         permission_mode: :accept_edits
       }
@@ -53,8 +53,8 @@ defmodule ClaudeAgentSdk.Options do
       }
   """
 
-  alias ClaudeAgentSdk.Hooks.HookMatcher
-  alias ClaudeAgentSdk.Types.Permissions
+  alias ClaudeAgent.Hooks.HookMatcher
+  alias ClaudeAgent.Types.Permissions
 
   @type permission_mode :: :default | :accept_edits | :plan | :bypass_permissions
   @type setting_source :: :user | :project | :local
@@ -210,7 +210,7 @@ defmodule ClaudeAgentSdk.Options do
 
   ## Examples
 
-      opts = ClaudeAgentSdk.Options.new(
+      opts = ClaudeAgent.Options.new(
         system_prompt: "You are helpful",
         allowed_tools: ["Read", "Write"]
       )

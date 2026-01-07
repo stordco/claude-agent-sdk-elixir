@@ -29,7 +29,7 @@ npm install -g @anthropic-ai/claude-code
 The simplest way to get a response from Claude:
 
 ```elixir
-text = ClaudeAgentSdk.query_text("What is the capital of France?")
+text = ClaudeAgent.query_text("What is the capital of France?")
 IO.puts(text)
 # => "The capital of France is Paris."
 ```
@@ -37,7 +37,7 @@ IO.puts(text)
 ### Get Full Result with Metadata
 
 ```elixir
-result = ClaudeAgentSdk.query_result("What is 2 + 2?")
+result = ClaudeAgent.query_result("What is 2 + 2?")
 IO.puts("Answer: #{result.result}")
 IO.puts("Cost: $#{result.total_cost_usd}")
 IO.puts("Duration: #{result.duration_ms}ms")
@@ -48,10 +48,10 @@ IO.puts("Duration: #{result.duration_ms}ms")
 For more control, stream all messages as they arrive:
 
 ```elixir
-alias ClaudeAgentSdk.Types.Messages.AssistantMessage
-alias ClaudeAgentSdk.Types.ContentBlocks.TextBlock
+alias ClaudeAgent.Types.Messages.AssistantMessage
+alias ClaudeAgent.Types.ContentBlocks.TextBlock
 
-ClaudeAgentSdk.query("What is 2 + 2?")
+ClaudeAgent.query("What is 2 + 2?")
 |> Enum.each(fn
   %AssistantMessage{content: blocks} ->
     Enum.each(blocks, fn
@@ -65,7 +65,7 @@ end)
 ### With Options
 
 ```elixir
-alias ClaudeAgentSdk.Options
+alias ClaudeAgent.Options
 
 opts = %Options{
   system_prompt: "You are a helpful coding assistant",
@@ -74,7 +74,7 @@ opts = %Options{
   max_turns: 5
 }
 
-ClaudeAgentSdk.query_text("List the files in the current directory", opts)
+ClaudeAgent.query_text("List the files in the current directory", opts)
 ```
 
 ## Configuration Options
@@ -90,7 +90,7 @@ ClaudeAgentSdk.query_text("List the files in the current directory", opts)
 | `model` | Model to use (e.g., "claude-sonnet-4-5") |
 | `cwd` | Working directory |
 
-See `ClaudeAgentSdk.Options` for full documentation.
+See `ClaudeAgent.Options` for full documentation.
 
 ## Message Types
 
@@ -112,10 +112,10 @@ Content blocks within AssistantMessage:
 For multi-turn conversations with full control:
 
 ```elixir
-alias ClaudeAgentSdk.Client
-alias ClaudeAgentSdk.Options
-alias ClaudeAgentSdk.Types.Messages.{AssistantMessage, ResultMessage}
-alias ClaudeAgentSdk.Types.ContentBlocks.TextBlock
+alias ClaudeAgent.Client
+alias ClaudeAgent.Options
+alias ClaudeAgent.Types.Messages.{AssistantMessage, ResultMessage}
+alias ClaudeAgent.Types.ContentBlocks.TextBlock
 
 # Start client
 {:ok, client} = Client.start_link(%Options{permission_mode: :bypass_permissions})

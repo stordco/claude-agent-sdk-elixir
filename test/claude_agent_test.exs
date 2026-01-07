@@ -1,12 +1,12 @@
-defmodule ClaudeAgentSdkTest do
+defmodule ClaudeAgentTest do
   use ExUnit.Case
-  doctest ClaudeAgentSdk
+  doctest ClaudeAgent
 
-  alias ClaudeAgentSdk.Options
+  alias ClaudeAgent.Options
 
   describe "version/0" do
     test "returns version string" do
-      version = ClaudeAgentSdk.version()
+      version = ClaudeAgent.version()
       assert is_binary(version)
       assert String.match?(version, ~r/^\d+\.\d+\.\d+/)
     end

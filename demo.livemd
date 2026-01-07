@@ -24,7 +24,7 @@ The easiest way to get a response from Claude:
 
 ```elixir
 # Get a simple text response
-ClaudeAgentSdk.query_text("What is the capital of France?")
+ClaudeAgent.query_text("What is the capital of France?")
 ```
 
 ## Get Full Result with Metadata
@@ -32,7 +32,7 @@ ClaudeAgentSdk.query_text("What is the capital of France?")
 Get detailed information about the response including cost and duration:
 
 ```elixir
-result = ClaudeAgentSdk.query_result("What is 2 + 2?")
+result = ClaudeAgent.query_result("What is 2 + 2?")
 
 IO.puts("""
 Answer: #{result.result}
@@ -49,10 +49,10 @@ result
 Stream all messages as they arrive for more control:
 
 ```elixir
-alias ClaudeAgentSdk.Types.Messages.{AssistantMessage, SystemMessage, ResultMessage}
-alias ClaudeAgentSdk.Types.ContentBlocks.TextBlock
+alias ClaudeAgent.Types.Messages.{AssistantMessage, SystemMessage, ResultMessage}
+alias ClaudeAgent.Types.ContentBlocks.TextBlock
 
-ClaudeAgentSdk.query("Explain pattern matching in Elixir in 2 sentences.")
+ClaudeAgent.query("Explain pattern matching in Elixir in 2 sentences.")
 |> Enum.each(fn
   %SystemMessage{} = msg ->
     IO.puts("📍 System: #{msg.subtype}")
@@ -76,14 +76,14 @@ end)
 Configure Claude's behavior with options:
 
 ```elixir
-alias ClaudeAgentSdk.Options
+alias ClaudeAgent.Options
 
 opts = %Options{
   system_prompt: "You are a helpful Elixir expert. Be concise.",
   max_turns: 3
 }
 
-ClaudeAgentSdk.query_text(
+ClaudeAgent.query_text(
   "What's the difference between `=` and `<-` in Elixir?",
   opts
 )
@@ -94,10 +94,10 @@ ClaudeAgentSdk.query_text(
 The `Client` module enables stateful, multi-turn conversations where Claude remembers context:
 
 ```elixir
-alias ClaudeAgentSdk.Client
-alias ClaudeAgentSdk.Options
-alias ClaudeAgentSdk.Types.Messages.{AssistantMessage, ResultMessage}
-alias ClaudeAgentSdk.Types.ContentBlocks.TextBlock
+alias ClaudeAgent.Client
+alias ClaudeAgent.Options
+alias ClaudeAgent.Types.Messages.{AssistantMessage, ResultMessage}
+alias ClaudeAgent.Types.ContentBlocks.TextBlock
 
 # Helper to extract text from messages
 extract_text = fn messages ->
@@ -168,7 +168,7 @@ IO.puts("✅ Client disconnected")
 Claude can use tools like reading files. Here's an example with tool permissions:
 
 ```elixir
-alias ClaudeAgentSdk.Options
+alias ClaudeAgent.Options
 
 opts = %Options{
   allowed_tools: ["Read", "Glob"],
@@ -177,7 +177,7 @@ opts = %Options{
 }
 
 # Ask Claude to read a file
-ClaudeAgentSdk.query_text(
+ClaudeAgent.query_text(
   "Read the mix.exs file and tell me the package name and version.",
   opts
 )
@@ -188,8 +188,8 @@ ClaudeAgentSdk.query_text(
 See exactly what tools Claude uses:
 
 ```elixir
-alias ClaudeAgentSdk.Types.Messages.AssistantMessage
-alias ClaudeAgentSdk.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
+alias ClaudeAgent.Types.Messages.AssistantMessage
+alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
 
 opts = %Options{
   allowed_tools: ["Read"],
@@ -197,7 +197,7 @@ opts = %Options{
   cwd: File.cwd!()
 }
 
-ClaudeAgentSdk.query("What's in the README.md? Summarize in one sentence.", opts)
+ClaudeAgent.query("What's in the README.md? Summarize in one sentence.", opts)
 |> Enum.each(fn
   %AssistantMessage{content: blocks} ->
     Enum.each(blocks, fn
@@ -246,11 +246,11 @@ info
 The SDK provides specific error types:
 
 ```elixir
-alias ClaudeAgentSdk.Errors.{CLINotFoundError, ProcessError, JSONDecodeError}
+alias ClaudeAgent.Errors.{CLINotFoundError, ProcessError, JSONDecodeError}
 
 # Example of error handling (this won't fail if CLI is installed)
 try do
-  ClaudeAgentSdk.query_text("Hello!")
+  ClaudeAgent.query_text("Hello!")
 rescue
   e in CLINotFoundError ->
     IO.puts("❌ CLI not found: #{e.message}")

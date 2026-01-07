@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Protocol.QueryHandler do
+defmodule ClaudeAgent.Protocol.QueryHandler do
   @moduledoc """
   Handles the bidirectional control protocol for Claude SDK.
 
@@ -29,10 +29,10 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
 
   require Logger
 
-  alias ClaudeAgentSdk.Hooks.HookMatcher
-  alias ClaudeAgentSdk.Transport.SubprocessCli
+  alias ClaudeAgent.Hooks.HookMatcher
+  alias ClaudeAgent.Transport.SubprocessCli
 
-  alias ClaudeAgentSdk.Types.Permissions.{
+  alias ClaudeAgent.Types.Permissions.{
     PermissionResultAllow,
     PermissionResultDeny,
     ToolPermissionContext
@@ -65,7 +65,7 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
   ## Options
 
   - `:transport` - Connected transport (required)
-  - `:options` - ClaudeAgentSdk.Options struct (required)
+  - `:options` - ClaudeAgent.Options struct (required)
   """
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -542,7 +542,7 @@ defmodule ClaudeAgentSdk.Protocol.QueryHandler do
          }}
 
       server ->
-        response = ClaudeAgentSdk.Mcp.Server.handle_request(server, mcp_message)
+        response = ClaudeAgent.Mcp.Server.handle_request(server, mcp_message)
         {:ok, %{"mcp_response" => response}}
     end
   end

@@ -1,7 +1,7 @@
-defmodule ClaudeAgentSdk.Mcp.ServerTest do
+defmodule ClaudeAgent.Mcp.ServerTest do
   use ExUnit.Case
 
-  alias ClaudeAgentSdk.Mcp.{Server, Tool}
+  alias ClaudeAgent.Mcp.{Server, Tool}
 
   describe "new/2" do
     test "creates server with name" do

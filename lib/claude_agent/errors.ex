@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Errors do
+defmodule ClaudeAgent.Errors do
   @moduledoc """
   Exception definitions for Claude Agent SDK.
 
@@ -14,12 +14,12 @@ defmodule ClaudeAgentSdk.Errors do
   ## Examples
 
       try do
-        ClaudeAgentSdk.query("Hello")
+        ClaudeAgent.query("Hello")
       rescue
-        e in ClaudeAgentSdk.Errors.CLINotFoundError ->
+        e in ClaudeAgent.Errors.CLINotFoundError ->
           IO.puts("Please install Claude Code: \#{e.message}")
 
-        e in ClaudeAgentSdk.Errors.ProcessError ->
+        e in ClaudeAgent.Errors.ProcessError ->
           IO.puts("Process failed with exit code: \#{e.exit_code}")
       end
   """

@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.MixProject do
+defmodule ClaudeAgent.MixProject do
   use Mix.Project
 
   @version "0.1.0"
@@ -44,39 +44,39 @@ defmodule ClaudeAgentSdk.MixProject do
 
   defp docs do
     [
-      main: "ClaudeAgentSdk",
+      main: "ClaudeAgent",
       source_ref: "v#{@version}",
       extras: ["README.md"],
       groups_for_modules: [
         "Main API": [
-          ClaudeAgentSdk,
-          ClaudeAgentSdk.Client,
-          ClaudeAgentSdk.Options
+          ClaudeAgent,
+          ClaudeAgent.Client,
+          ClaudeAgent.Options
         ],
         Types: [
-          ClaudeAgentSdk.Types.Messages,
-          ClaudeAgentSdk.Types.ContentBlocks,
-          ClaudeAgentSdk.Types.Permissions
+          ClaudeAgent.Types.Messages,
+          ClaudeAgent.Types.ContentBlocks,
+          ClaudeAgent.Types.Permissions
         ],
         Transport: [
-          ClaudeAgentSdk.Transport,
-          ClaudeAgentSdk.Transport.SubprocessCli
+          ClaudeAgent.Transport,
+          ClaudeAgent.Transport.SubprocessCli
         ],
         Protocol: [
-          ClaudeAgentSdk.Protocol.QueryHandler,
-          ClaudeAgentSdk.Protocol.MessageParser,
-          ClaudeAgentSdk.Protocol.ControlProtocol
+          ClaudeAgent.Protocol.QueryHandler,
+          ClaudeAgent.Protocol.MessageParser,
+          ClaudeAgent.Protocol.ControlProtocol
         ],
         MCP: [
-          ClaudeAgentSdk.Mcp.Server,
-          ClaudeAgentSdk.Mcp.Tool
+          ClaudeAgent.Mcp.Server,
+          ClaudeAgent.Mcp.Tool
         ],
         Hooks: [
-          ClaudeAgentSdk.Hooks.HookMatcher,
-          ClaudeAgentSdk.Hooks.HookHandler
+          ClaudeAgent.Hooks.HookMatcher,
+          ClaudeAgent.Hooks.HookHandler
         ],
         Errors: [
-          ClaudeAgentSdk.Errors
+          ClaudeAgent.Errors
         ]
       ]
     ]

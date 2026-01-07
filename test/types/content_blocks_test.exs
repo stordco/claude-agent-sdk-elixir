@@ -1,8 +1,8 @@
-defmodule ClaudeAgentSdk.Types.ContentBlocksTest do
+defmodule ClaudeAgent.Types.ContentBlocksTest do
   use ExUnit.Case
 
-  alias ClaudeAgentSdk.Types.ContentBlocks
-  alias ClaudeAgentSdk.Types.ContentBlocks.{TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock}
+  alias ClaudeAgent.Types.ContentBlocks
+  alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock}
 
   describe "TextBlock" do
     test "creates with text" do

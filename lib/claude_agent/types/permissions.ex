@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Types.Permissions do
+defmodule ClaudeAgent.Types.Permissions do
   @moduledoc """
   Permission-related type definitions for Claude SDK.
 
@@ -67,7 +67,7 @@ defmodule ClaudeAgentSdk.Types.Permissions do
     Used to update permission rules during a session.
     """
 
-    alias ClaudeAgentSdk.Types.Permissions.PermissionRuleValue
+    alias ClaudeAgent.Types.Permissions.PermissionRuleValue
 
     @type update_type ::
             :add_rules
@@ -80,10 +80,10 @@ defmodule ClaudeAgentSdk.Types.Permissions do
     @type t :: %__MODULE__{
             type: update_type(),
             rules: [PermissionRuleValue.t()] | nil,
-            behavior: ClaudeAgentSdk.Types.Permissions.permission_behavior() | nil,
-            mode: ClaudeAgentSdk.Types.Permissions.permission_mode() | nil,
+            behavior: ClaudeAgent.Types.Permissions.permission_behavior() | nil,
+            mode: ClaudeAgent.Types.Permissions.permission_mode() | nil,
             directories: [String.t()] | nil,
-            destination: ClaudeAgentSdk.Types.Permissions.permission_destination() | nil
+            destination: ClaudeAgent.Types.Permissions.permission_destination() | nil
           }
 
     @enforce_keys [:type]

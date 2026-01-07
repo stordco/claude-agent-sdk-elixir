@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Mcp.Server do
+defmodule ClaudeAgent.Mcp.Server do
   @moduledoc """
   In-process MCP server for SDK tools.
 
@@ -45,7 +45,7 @@ defmodule ClaudeAgentSdk.Mcp.Server do
   - `notifications/initialized` - Acknowledges initialization
   """
 
-  alias ClaudeAgentSdk.Mcp.Tool
+  alias ClaudeAgent.Mcp.Tool
 
   defstruct [:name, :version, :tools]
 

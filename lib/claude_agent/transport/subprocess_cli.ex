@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Transport.SubprocessCli do
+defmodule ClaudeAgent.Transport.SubprocessCli do
   @moduledoc """
   Transport implementation using Claude Code CLI subprocess.
 
@@ -13,12 +13,12 @@ defmodule ClaudeAgentSdk.Transport.SubprocessCli do
   - Configurable buffer size limits
   """
 
-  @behaviour ClaudeAgentSdk.Transport
+  @behaviour ClaudeAgent.Transport
 
   require Logger
 
-  alias ClaudeAgentSdk.Errors.{CLIConnectionError, CLINotFoundError, JSONDecodeError, ProcessError}
-  alias ClaudeAgentSdk.Options
+  alias ClaudeAgent.Errors.{CLIConnectionError, CLINotFoundError, JSONDecodeError, ProcessError}
+  alias ClaudeAgent.Options
 
   @default_max_buffer_size 1024 * 1024
   @minimum_cli_version "2.0.0"
@@ -62,7 +62,7 @@ defmodule ClaudeAgentSdk.Transport.SubprocessCli do
   ## Options
 
   - `:prompt` - The initial prompt (string or nil for streaming mode)
-  - `:options` - ClaudeAgentSdk.Options struct
+  - `:options` - ClaudeAgent.Options struct
 
   ## Examples
 
@@ -795,7 +795,7 @@ defmodule ClaudeAgentSdk.Transport.SubprocessCli do
     env_list =
       transport.options.env
       |> Map.put("CLAUDE_CODE_ENTRYPOINT", "sdk-elixir")
-      |> Map.put("CLAUDE_AGENT_SDK_VERSION", ClaudeAgentSdk.version())
+      |> Map.put("CLAUDE_AGENT_SDK_VERSION", ClaudeAgent.version())
       |> maybe_put_env(
         "CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING",
         transport.options.enable_file_checkpointing

@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Types.ContentBlocks do
+defmodule ClaudeAgent.Types.ContentBlocks do
   @moduledoc """
   Content block type definitions for Claude SDK messages.
 

@@ -1,10 +1,10 @@
-defmodule ClaudeAgentSdk.Query do
+defmodule ClaudeAgent.Query do
   @moduledoc """
   Simple query execution for one-shot interactions with Claude.
 
   This module provides a straightforward way to execute queries without
   the complexity of the full streaming client. For advanced features like
-  multi-turn conversations, interrupts, and hooks, use `ClaudeAgentSdk.Client`.
+  multi-turn conversations, interrupts, and hooks, use `ClaudeAgent.Client`.
 
   ## How It Works
 
@@ -18,9 +18,9 @@ defmodule ClaudeAgentSdk.Query do
 
   require Logger
 
-  alias ClaudeAgentSdk.Options
-  alias ClaudeAgentSdk.Protocol.MessageParser
-  alias ClaudeAgentSdk.Transport.SubprocessCli
+  alias ClaudeAgent.Options
+  alias ClaudeAgent.Protocol.MessageParser
+  alias ClaudeAgent.Transport.SubprocessCli
 
   @doc """
   Run a query and return a stream of messages.
@@ -28,7 +28,7 @@ defmodule ClaudeAgentSdk.Query do
   ## Parameters
 
   - `prompt` - The prompt string to send
-  - `options` - `ClaudeAgentSdk.Options` struct
+  - `options` - `ClaudeAgent.Options` struct
 
   ## Returns
 
@@ -54,7 +54,7 @@ defmodule ClaudeAgentSdk.Query do
       #{if options.can_use_tool, do: "- can_use_tool callback", else: ""}
       #{if options.hooks, do: "- hooks configuration", else: ""}
 
-      Please use ClaudeAgentSdk.Client for these features.
+      Please use ClaudeAgent.Client for these features.
       """
     end
 

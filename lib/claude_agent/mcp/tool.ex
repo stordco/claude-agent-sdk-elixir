@@ -1,4 +1,4 @@
-defmodule ClaudeAgentSdk.Mcp.Tool do
+defmodule ClaudeAgent.Mcp.Tool do
   @moduledoc """
   Tool definition for SDK MCP servers.
 
