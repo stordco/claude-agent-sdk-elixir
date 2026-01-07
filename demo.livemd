@@ -1,0 +1,297 @@
+# Claude Agent SDK Demo
+
+```elixir
+Mix.install([
+  {:claude_agent_sdk, path: "."},
+  {:pythonx, "~> 0.4.2"},
+  {:kino_pythonx, "~> 0.1.0"}
+])
+```
+
+## Introduction
+
+This LiveBook demonstrates the **Claude Agent SDK for Elixir** - an SDK for interacting with Claude through the Claude Code CLI.
+
+> **Prerequisites**: You need the Claude Code CLI installed:
+> 
+> ```bash
+> npm install -g @anthropic-ai/claude-code
+> ```
+
+## Quick Start: Simple Query
+
+The easiest way to get a response from Claude:
+
+```elixir
+# Get a simple text response
+ClaudeAgentSdk.query_text("What is the capital of France?")
+```
+
+## Get Full Result with Metadata
+
+Get detailed information about the response including cost and duration:
+
+```elixir
+result = ClaudeAgentSdk.query_result("What is 2 + 2?")
+
+IO.puts("""
+Answer: #{result.result}
+Cost: $#{result.total_cost_usd}
+Duration: #{result.duration_ms}ms
+Session ID: #{result.session_id}
+""")
+
+result
+```
+
+## Streaming Messages
+
+Stream all messages as they arrive for more control:
+
+```elixir
+alias ClaudeAgentSdk.Types.Messages.{AssistantMessage, SystemMessage, ResultMessage}
+alias ClaudeAgentSdk.Types.ContentBlocks.TextBlock
+
+ClaudeAgentSdk.query("Explain pattern matching in Elixir in 2 sentences.")
+|> Enum.each(fn
+  %SystemMessage{} = msg ->
+    IO.puts("📍 System: #{msg.subtype}")
+
+  %AssistantMessage{content: blocks} ->
+    Enum.each(blocks, fn
+      %TextBlock{text: text} -> IO.puts("🤖 #{text}")
+      other -> IO.inspect(other, label: "Content Block")
+    end)
+
+  %ResultMessage{} = msg ->
+    IO.puts("\n✅ Done! Cost: $#{msg.total_cost_usd}")
+
+  other ->
+    IO.inspect(other, label: "Message")
+end)
+```
+
+## Using Options
+
+Configure Claude's behavior with options:
+
+```elixir
+alias ClaudeAgentSdk.Options
+
+opts = %Options{
+  system_prompt: "You are a helpful Elixir expert. Be concise.",
+  max_turns: 3
+}
+
+ClaudeAgentSdk.query_text(
+  "What's the difference between `=` and `<-` in Elixir?",
+  opts
+)
+```
+
+## Interactive Client: Multi-turn Conversations
+
+The `Client` module enables stateful, multi-turn conversations where Claude remembers context:
+
+```elixir
+alias ClaudeAgentSdk.Client
+alias ClaudeAgentSdk.Options
+alias ClaudeAgentSdk.Types.Messages.{AssistantMessage, ResultMessage}
+alias ClaudeAgentSdk.Types.ContentBlocks.TextBlock
+
+# Helper to extract text from messages
+extract_text = fn messages ->
+  messages
+  |> Enum.filter(&match?(%AssistantMessage{}, &1))
+  |> Enum.flat_map(& &1.content)
+  |> Enum.filter(&match?(%TextBlock{}, &1))
+  |> Enum.map(& &1.text)
+  |> Enum.join(" ")
+end
+
+# Start client with bypass permissions (for demo purposes)
+{:ok, client} = Client.start_link(%Options{permission_mode: :bypass_permissions})
+
+IO.puts("Client started!")
+client
+```
+
+### First Message
+
+```elixir
+# Send first message
+:ok = Client.query(client, "My name is Alice and I'm learning Elixir. Remember this.")
+
+messages = client |> Client.receive_response() |> Enum.to_list()
+IO.puts("📝 Response:")
+IO.puts(extract_text.(messages))
+
+messages
+```
+
+### Follow-up Message (Claude Remembers Context)
+
+```elixir
+# Follow-up - Claude should remember the name
+:ok = Client.query(client, "What is my name and what am I learning?")
+
+messages = client |> Client.receive_response() |> Enum.to_list()
+IO.puts("📝 Response:")
+IO.puts(extract_text.(messages))
+
+messages
+```
+
+### Another Follow-up
+
+```elixir
+# Ask a related question
+:ok = Client.query(client, "Give me one tip for what I'm learning, keeping it brief.")
+
+messages = client |> Client.receive_response() |> Enum.to_list()
+IO.puts("📝 Response:")
+IO.puts(extract_text.(messages))
+
+messages
+```
+
+### Cleanup
+
+```elixir
+# Always disconnect when done
+Client.disconnect(client)
+IO.puts("✅ Client disconnected")
+```
+
+## Tool Usage Example
+
+Claude can use tools like reading files. Here's an example with tool permissions:
+
+```elixir
+alias ClaudeAgentSdk.Options
+
+opts = %Options{
+  allowed_tools: ["Read", "Glob"],
+  permission_mode: :bypass_permissions,
+  cwd: File.cwd!()
+}
+
+# Ask Claude to read a file
+ClaudeAgentSdk.query_text(
+  "Read the mix.exs file and tell me the package name and version.",
+  opts
+)
+```
+
+## Inspect Tool Usage in Detail
+
+See exactly what tools Claude uses:
+
+```elixir
+alias ClaudeAgentSdk.Types.Messages.AssistantMessage
+alias ClaudeAgentSdk.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
+
+opts = %Options{
+  allowed_tools: ["Read"],
+  permission_mode: :bypass_permissions,
+  cwd: File.cwd!()
+}
+
+ClaudeAgentSdk.query("What's in the README.md? Summarize in one sentence.", opts)
+|> Enum.each(fn
+  %AssistantMessage{content: blocks} ->
+    Enum.each(blocks, fn
+      %TextBlock{text: text} ->
+        IO.puts("💬 Text: #{text}")
+
+      %ToolUseBlock{name: name, input: input} ->
+        IO.puts("🔧 Tool Use: #{name}")
+        IO.inspect(input, label: "   Input", pretty: true)
+
+      %ToolResultBlock{tool_use_id: id, content: content} ->
+        preview = if is_binary(content), do: String.slice(content, 0, 200), else: inspect(content)
+        IO.puts("📋 Tool Result (#{id}):")
+        IO.puts("   #{preview}...")
+
+      other ->
+        IO.inspect(other, label: "Block")
+    end)
+
+  _other ->
+    :ok
+end)
+```
+
+## Server Info
+
+Get information about the Claude Code server capabilities:
+
+```elixir
+{:ok, client} = Client.start_link(%Options{permission_mode: :bypass_permissions})
+
+# Must connect first (or call query) before server_info is available
+:ok = Client.connect(client)
+
+{:ok, info} = Client.get_server_info(client)
+
+IO.puts("Server Capabilities:")
+IO.inspect(info, pretty: true)
+
+Client.disconnect(client)
+info
+```
+
+## Error Handling
+
+The SDK provides specific error types:
+
+```elixir
+alias ClaudeAgentSdk.Errors.{CLINotFoundError, ProcessError, JSONDecodeError}
+
+# Example of error handling (this won't fail if CLI is installed)
+try do
+  ClaudeAgentSdk.query_text("Hello!")
+rescue
+  e in CLINotFoundError ->
+    IO.puts("❌ CLI not found: #{e.message}")
+    if e.cli_path, do: IO.puts("   Searched: #{e.cli_path}")
+
+  e in ProcessError ->
+    IO.puts("❌ Process error: #{e.message}")
+    if e.exit_code, do: IO.puts("   Exit code: #{e.exit_code}")
+    if e.stderr, do: IO.puts("   Stderr: #{e.stderr}")
+
+  e in JSONDecodeError ->
+    IO.puts("❌ JSON decode error: #{e.message}")
+end
+```
+
+## Message Types Reference
+
+Here's a quick reference of the message types you'll encounter:
+
+| Type               | Description                            |
+| ------------------ | -------------------------------------- |
+| `SystemMessage`    | System events (init, auth status)      |
+| `AssistantMessage` | Claude's responses with content blocks |
+| `UserMessage`      | User messages (when echoed back)       |
+| `ResultMessage`    | Final result with cost/duration        |
+
+Content blocks within `AssistantMessage`:
+
+| Block Type        | Description                       |
+| ----------------- | --------------------------------- |
+| `TextBlock`       | Plain text response               |
+| `ThinkingBlock`   | Claude's reasoning (when enabled) |
+| `ToolUseBlock`    | Tool invocation details           |
+| `ToolResultBlock` | Result from tool execution        |
+
+## Cleanup
+
+Make sure to clean up any resources:
+
+```elixir
+# If you have any running clients, disconnect them
+# Client.disconnect(client)
+IO.puts("🧹 Cleanup complete!")
+```
