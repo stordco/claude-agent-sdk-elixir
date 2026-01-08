@@ -157,15 +157,15 @@ jobs:
               elixir \
               && rm -rf /var/lib/apt/lists/*
 
-          # Install hex and rebar
-          RUN mix local.hex --force && \
-              mix local.rebar --force
-
           # Create non-root user
           RUN useradd -m -u 1000 app
 
           USER app
           WORKDIR /home/app
+
+          # Install hex and rebar as app user
+          RUN mix local.hex --force && \
+              mix local.rebar --force
 
           # Copy SDK code
           COPY --chown=app:app . /home/app/claude-agent-sdk
