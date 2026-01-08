@@ -13,10 +13,14 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Elixir and Erlang
+# Install Erlang and Elixir from Erlang Solutions
 RUN apt-get update && apt-get install -y \
-    erlang \
-    elixir \
+    wget \
+    gnupg \
+    && wget -O- https://packages.erlang-solutions.com/ubuntu/erlang_solutions.asc | gpg --dearmor -o /usr/share/keyrings/erlang-solutions.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/erlang-solutions.gpg] https://packages.erlang-solutions.com/debian bookworm contrib" | tee /etc/apt/sources.list.d/erlang-solutions.list \
+    && apt-get update \
+    && apt-get install -y esl-erlang elixir \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user (UID 1000)

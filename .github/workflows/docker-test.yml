@@ -151,11 +151,12 @@ jobs:
               ca-certificates \
               && rm -rf /var/lib/apt/lists/*
 
-          # Install Erlang and Elixir from Ubuntu repos (more reliable)
-          RUN apt-get update && apt-get install -y \
-              erlang \
-              elixir \
-              && rm -rf /var/lib/apt/lists/*
+          # Install Erlang and Elixir from Erlang Solutions
+          RUN wget -O- https://packages.erlang-solutions.com/ubuntu/erlang_solutions.asc | gpg --dearmor -o /usr/share/keyrings/erlang-solutions.gpg && \
+              echo "deb [signed-by=/usr/share/keyrings/erlang-solutions.gpg] https://packages.erlang-solutions.com/ubuntu jammy contrib" | tee /etc/apt/sources.list.d/erlang-solutions.list && \
+              apt-get update && \
+              apt-get install -y esl-erlang elixir && \
+              rm -rf /var/lib/apt/lists/*
 
           # Create non-root user
           RUN useradd -m -u 1000 app
