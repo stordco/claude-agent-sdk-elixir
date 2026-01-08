@@ -778,8 +778,7 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   end
 
   defp find_script_command do
-    paths = ["/usr/bin/script", "/bin/script"]
-    Enum.find(paths, &(File.exists?(&1) and File.regular?(&1)))
+    System.find_executable("script")
   end
 
   @doc """
