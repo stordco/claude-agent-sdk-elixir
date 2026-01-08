@@ -28,6 +28,7 @@ defmodule DockerTest do
 
     # Test shell escaping
     IO.puts("\n2. Testing shell escaping...")
+
     test_args = [
       "/home/app/.npm-global/bin/claude",
       "--output-format",
@@ -59,17 +60,18 @@ defmodule DockerTest do
       script_path = System.find_executable("script")
 
       if script_path do
-        full_cmd = shell_escape_command([
-          "/home/app/.npm-global/bin/claude",
-          "--output-format",
-          "stream-json",
-          "--verbose",
-          "--system-prompt",
-          "",
-          "--print",
-          "--",
-          test_query
-        ])
+        full_cmd =
+          shell_escape_command([
+            "/home/app/.npm-global/bin/claude",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--system-prompt",
+            "",
+            "--print",
+            "--",
+            test_query
+          ])
 
         port_args = ["-q", "-c", full_cmd, "/dev/null"]
 
@@ -79,10 +81,11 @@ defmodule DockerTest do
             :exit_status,
             :use_stdio,
             {:args, port_args},
-            {:env, [
-              {~c"CLAUDE_CODE_ENTRYPOINT", ~c"sdk-elixir-test"},
-              {~c"PATH", String.to_charlist(System.get_env("PATH", ""))}
-            ]}
+            {:env,
+             [
+               {~c"CLAUDE_CODE_ENTRYPOINT", ~c"sdk-elixir-test"},
+               {~c"PATH", String.to_charlist(System.get_env("PATH", ""))}
+             ]}
           ])
 
         result = collect_output(port, "")
