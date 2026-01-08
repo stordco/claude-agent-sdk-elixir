@@ -785,13 +785,23 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   @doc """
   Escapes a list of command arguments for safe execution in a shell.
 
-  This function properly quotes and escapes each argument to prevent
-  shell interpretation issues when passing commands to `script -c`.
+  This function wraps each argument in double quotes and escapes special
+  characters to prevent shell interpretation issues when passing commands
+  to `script -c` on Linux systems.
+
+  ## Escaping Rules
+
+  - All arguments are wrapped in double quotes
+  - Escaped characters: `\\`, `"`, `$`, `` ` ``, newlines
+  - Single quotes (`'`) are preserved as-is (no escaping needed inside double quotes)
 
   ## Examples
 
       iex> SubprocessCli.shell_escape_command(["/bin/claude", "--prompt", "What's up?"])
       ~s("/bin/claude" "--prompt" "What's up?")
+
+      iex> SubprocessCli.shell_escape_command(["/bin/claude", "--json", "{\\"key\\": \\"value\\"}"])
+      ~s("/bin/claude" "--json" "{\\\\"key\\\\": \\\\"value\\\\"}")
 
   """
   def shell_escape_command(args) when is_list(args) do
