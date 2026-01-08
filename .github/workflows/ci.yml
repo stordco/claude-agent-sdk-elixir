@@ -23,11 +23,9 @@ jobs:
           - elixir: '1.16'
             otp: '26'
             dialyzer: true
-          # Also test with slightly older versions
+          # Minimum supported version
           - elixir: '1.15'
             otp: '25'
-          - elixir: '1.14'
-            otp: '24'
 
     steps:
       - name: Checkout code
@@ -56,8 +54,6 @@ jobs:
         run: mix deps.compile
 
       - name: Check formatting
-        # Skip formatting check for Elixir 1.14 due to formatter differences
-        if: matrix.elixir != '1.14'
         run: mix format --check-formatted
 
       - name: Compile with warnings as errors
