@@ -26,11 +26,18 @@ RUN useradd -m -u 1000 app
 USER app
 WORKDIR /home/app
 
-# Install Claude CLI globally for this user
+# Configure npm to install globally in user home directory
+RUN mkdir -p /home/app/.npm-global && \
+    npm config set prefix '/home/app/.npm-global'
+
+# Add npm global bin to PATH
+ENV PATH="/home/app/.npm-global/bin:${PATH}"
+
+# Install Claude CLI in user space
 RUN npm install -g @anthropic-ai/claude-code
 
-# Verify script command exists
-RUN which script
+# Verify installations
+RUN which script && which node && which npm && which claude
 
 # Copy the SDK code
 COPY --chown=app:app . /home/app/claude-agent-sdk

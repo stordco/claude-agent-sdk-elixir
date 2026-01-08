@@ -148,14 +148,14 @@ jobs:
               util-linux \
               wget \
               gnupg \
+              ca-certificates \
               && rm -rf /var/lib/apt/lists/*
 
-          # Install Erlang and Elixir
-          RUN wget https://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb && \
-              dpkg -i erlang-solutions_2.0_all.deb && \
-              apt-get update && \
-              apt-get install -y esl-erlang elixir && \
-              rm -rf /var/lib/apt/lists/*
+          # Install Erlang and Elixir from Ubuntu repos (more reliable)
+          RUN apt-get update && apt-get install -y \
+              erlang \
+              elixir \
+              && rm -rf /var/lib/apt/lists/*
 
           # Create non-root user
           RUN useradd -m -u 1000 app
