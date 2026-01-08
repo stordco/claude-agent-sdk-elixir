@@ -763,8 +763,8 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
         script_path = find_script_command()
 
         if script_path do
-          # Build the full command string for -c option
-          full_cmd = Enum.join([cli_path | args], " ")
+          # Build the full command string for -c option with proper escaping
+          full_cmd = shell_escape_command([cli_path | args])
           {script_path, ["-q", "-c", full_cmd, "/dev/null"]}
         else
           Logger.warning("'script' command not found - CLI may not work properly without TTY")
@@ -780,6 +780,38 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   defp find_script_command do
     paths = ["/usr/bin/script", "/bin/script"]
     Enum.find(paths, &(File.exists?(&1) and File.regular?(&1)))
+  end
+
+  @doc """
+  Escapes a list of command arguments for safe execution in a shell.
+
+  This function properly quotes and escapes each argument to prevent
+  shell interpretation issues when passing commands to `script -c`.
+
+  ## Examples
+
+      iex> SubprocessCli.shell_escape_command(["/bin/claude", "--prompt", "What's up?"])
+      ~s("/bin/claude" "--prompt" "What's up?")
+
+  """
+  def shell_escape_command(args) when is_list(args) do
+    args
+    |> Enum.map(&shell_escape_arg/1)
+    |> Enum.join(" ")
+  end
+
+  # Escape a single argument for shell execution
+  # Uses double quotes and escapes: ", \, $, `, and newline
+  defp shell_escape_arg(arg) do
+    escaped =
+      arg
+      |> String.replace("\\", "\\\\")
+      |> String.replace("\"", "\\\"")
+      |> String.replace("$", "\\$")
+      |> String.replace("`", "\\`")
+      |> String.replace("\n", "\\n")
+
+    "\"#{escaped}\""
   end
 
   defp build_port_options(%__MODULE__{} = transport, _executable, args) do
