@@ -8,12 +8,7 @@ defmodule ClaudeAgent.AgentsTest do
     test "filters out nil values from agent definitions" do
       opts = [
         agents: %{
-          "test-agent" => %{
-            description: "Test agent",
-            prompt: "You are a test agent",
-            tools: nil,
-            model: nil
-          }
+          "test-agent" => Subagent.new("Test agent", "You are a test agent")
         }
       ]
 
@@ -39,12 +34,13 @@ defmodule ClaudeAgent.AgentsTest do
     test "preserves non-nil values in agent definitions" do
       opts = [
         agents: %{
-          "code-reviewer" => %{
-            description: "Code review specialist",
-            prompt: "Review code for issues",
-            tools: ["Read", "Grep", "Glob"],
-            model: :sonnet
-          }
+          "code-reviewer" =>
+            Subagent.new(
+              "Code review specialist",
+              "Review code for issues",
+              tools: ["Read", "Grep", "Glob"],
+              model: :sonnet
+            )
         }
       ]
 
@@ -66,18 +62,14 @@ defmodule ClaudeAgent.AgentsTest do
     test "handles multiple agents with mixed nil values" do
       opts = [
         agents: %{
-          "analyzer" => %{
-            description: "Analyzer",
-            prompt: "Analyze code",
-            tools: ["Read"],
-            model: :sonnet
-          },
-          "tester" => %{
-            description: "Tester",
-            prompt: "Generate tests",
-            tools: nil,
-            model: nil
-          }
+          "analyzer" =>
+            Subagent.new(
+              "Analyzer",
+              "Analyze code",
+              tools: ["Read"],
+              model: :sonnet
+            ),
+          "tester" => Subagent.new("Tester", "Generate tests")
         }
       ]
 
@@ -106,24 +98,19 @@ defmodule ClaudeAgent.AgentsTest do
 
     test "converts model atoms to strings" do
       model_mappings = [
-        {%{model: :sonnet}, "sonnet"},
-        {%{model: :opus}, "opus"},
-        {%{model: :haiku}, "haiku"},
-        {%{model: :inherit}, "inherit"}
+        {:sonnet, "sonnet"},
+        {:opus, "opus"},
+        {:haiku, "haiku"},
+        {:inherit, "inherit"}
       ]
 
-      for {agent_def, expected_model} <- model_mappings do
-        full_def =
-          Map.merge(
-            %{
-              description: "Test",
-              prompt: "Test prompt",
-              tools: nil
-            },
-            agent_def
-          )
+      for {model_atom, expected_model} <- model_mappings do
+        opts = [
+          agents: %{
+            "test" => Subagent.new("Test", "Test prompt", model: model_atom)
+          }
+        ]
 
-        opts = [agents: %{"test" => full_def}]
         transport = SubprocessCli.new("test", opts)
         cmd = SubprocessCli.build_command_for_testing(transport)
 
@@ -132,7 +119,7 @@ defmodule ClaudeAgent.AgentsTest do
         agents = Jason.decode!(agents_json)
 
         assert agents["test"]["model"] == expected_model,
-               "Expected model :#{agent_def.model} to serialize as '#{expected_model}'"
+               "Expected model :#{model_atom} to serialize as '#{expected_model}'"
       end
     end
 
@@ -166,12 +153,13 @@ defmodule ClaudeAgent.AgentsTest do
 
       opts = [
         agents: %{
-          "large-agent" => %{
-            description: "Large agent with extremely long prompt",
-            prompt: large_prompt,
-            tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "WebSearch", "WebFetch"],
-            model: :sonnet
-          }
+          "large-agent" =>
+            Subagent.new(
+              "Large agent with extremely long prompt",
+              large_prompt,
+              tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "WebSearch", "WebFetch"],
+              model: :sonnet
+            )
         }
       ]
 
@@ -241,12 +229,13 @@ defmodule ClaudeAgent.AgentsTest do
     test "produces valid JSON for CLI consumption" do
       opts = [
         agents: %{
-          "test-agent" => %{
-            description: "Test agent",
-            prompt: "You are a test agent",
-            tools: ["Read", "Grep"],
-            model: :sonnet
-          }
+          "test-agent" =>
+            Subagent.new(
+              "Test agent",
+              "You are a test agent",
+              tools: ["Read", "Grep"],
+              model: :sonnet
+            )
         }
       ]
 
@@ -265,12 +254,11 @@ defmodule ClaudeAgent.AgentsTest do
     test "handles special characters in agent fields" do
       opts = [
         agents: %{
-          "test-agent" => %{
-            description: "Agent with \"quotes\" and 'apostrophes'",
-            prompt: "Prompt with\nnewlines and\ttabs",
-            tools: nil,
-            model: nil
-          }
+          "test-agent" =>
+            Subagent.new(
+              "Agent with \"quotes\" and 'apostrophes'",
+              "Prompt with\nnewlines and\ttabs"
+            )
         }
       ]
 
