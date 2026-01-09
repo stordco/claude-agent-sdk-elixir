@@ -65,22 +65,69 @@ end)
 ### With Options
 
 ```elixir
-alias ClaudeAgent.Options
-
-opts = %Options{
+ClaudeAgent.query_text("List the files in the current directory",
   system_prompt: "You are a helpful coding assistant",
   allowed_tools: ["Read", "Write", "Bash"],
   permission_mode: :bypass_permissions,
   max_turns: 5
-}
+)
+```
 
-ClaudeAgent.query_text("List the files in the current directory", opts)
+## Configuration
+
+Configure default options in your application's `config/config.exs` file:
+
+```elixir
+# In your app's config/config.exs
+config :claude_agent_sdk,
+  cli_path: "/path/to/claude",           # Path to Claude CLI
+  permission_mode: :bypass_permissions,  # Default permission mode
+  system_prompt: "You are helpful",      # Default system prompt
+  max_turns: 10,                         # Maximum conversation turns
+  max_budget_usd: 1.0                    # Budget limit
+```
+
+### Environment-Specific Configuration
+
+Use environment-specific config files for different settings:
+
+```elixir
+# config/dev.exs
+config :claude_agent_sdk,
+  permission_mode: :bypass_permissions,
+  max_turns: 20
+
+# config/test.exs
+config :claude_agent_sdk,
+  permission_mode: :bypass_permissions,
+  max_turns: 5
+
+# config/runtime.exs - for production environment variables
+if cli_path = System.get_env("CLAUDE_CLI_PATH") do
+  config :claude_agent_sdk, cli_path: cli_path
+end
+```
+
+### Precedence
+
+Configuration follows this precedence (highest to lowest):
+1. **Per-query options** - Passed directly to `query/2`, `query_text/2`, etc.
+2. **Application config** - Set in your app's `config/*.exs` files
+3. **Built-in defaults** - Defined in `ClaudeAgent.Options.defaults/0`
+
+```elixir
+# Uses application config defaults
+ClaudeAgent.query_text("Hello!")
+
+# Per-query options override application config
+ClaudeAgent.query_text("Hello!", system_prompt: "Be concise", max_turns: 3)
 ```
 
 ## Configuration Options
 
 | Option | Description |
 |--------|-------------|
+| `cli_path` | Path to Claude CLI executable |
 | `system_prompt` | Custom system prompt |
 | `allowed_tools` | List of allowed tool names |
 | `disallowed_tools` | List of disallowed tool names |
@@ -113,12 +160,11 @@ For multi-turn conversations with full control:
 
 ```elixir
 alias ClaudeAgent.Client
-alias ClaudeAgent.Options
 alias ClaudeAgent.Types.Messages.{AssistantMessage, ResultMessage}
 alias ClaudeAgent.Types.ContentBlocks.TextBlock
 
 # Start client
-{:ok, client} = Client.start_link(%Options{permission_mode: :bypass_permissions})
+{:ok, client} = Client.start_link(permission_mode: :bypass_permissions)
 
 # Send first message
 :ok = Client.query(client, "My name is Alice. Remember this.")
@@ -153,6 +199,46 @@ Client.disconnect(client)
 - `Client.get_server_info/1` - Get available commands and capabilities
 - `Client.disconnect/1` - Close the connection
 
+## Livebook Demo
+
+Try the interactive demo notebook [demo.livemd](demo.livemd):
+
+1. Download and install [LiveBook Desktop](https://livebook.dev/)
+2. Open the LiveBook Desktop app
+3. Click "Open" and navigate to `demo.livemd` in this repository
+4. Run the cells to see examples
+
+The demo runs locally and has access to your environment, including the Claude CLI.
+
+### Livebook via Escript (Alternative)
+
+For local development and easy configuration via CLI options, you can install Livebook as an escript:
+
+```bash
+# Install Livebook escript
+mix do local.rebar --force, local.hex --force
+mix escript.install hex livebook
+
+# Start the Livebook server
+livebook server
+
+# See all configuration options
+livebook server --help
+```
+
+**Important**: After installing the escript, ensure the escript directory is in your `$PATH`:
+
+- If you installed Elixir with `asdf`, run `asdf reshim elixir` after the escript is built
+- The escript directory is typically `~/.mix/escripts`
+
+Once Livebook is running, you can:
+
+1. Navigate to the Livebook web interface (usually `http://localhost:8080`)
+2. Import the demo notebook by URL: `http://localhost:8080/import?url=file:///path/to/demo.livemd`
+3. Or use "Open" and select [demo.livemd](demo.livemd) from this repository
+
+This method provides a convenient way to interact with the SDK directly in your local environment, with full access to your filesystem and installed tools like the Claude CLI.
+
 ## Advanced Features (Work in Progress)
 
 The following features are implemented but still being refined:
@@ -160,6 +246,14 @@ The following features are implemented but still being refined:
 - **Hooks** - Intercept and modify tool usage
 - **MCP Servers** - In-process MCP servers with custom tools
 - **Tool Permissions** - Programmatic permission callbacks
+
+## Testing
+
+Run the test suite:
+
+```bash
+mix test
+```
 
 ## License
 

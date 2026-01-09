@@ -8,7 +8,7 @@ defmodule ClaudeAgent do
 
   ## Quick Start
 
-      # Simple query
+      # Simple query (uses config.exs defaults)
       ClaudeAgent.query("What is 2 + 2?")
       |> Stream.each(fn message ->
         case message do
@@ -24,15 +24,12 @@ defmodule ClaudeAgent do
 
   ## With Options
 
-      alias ClaudeAgent.Options
-
-      opts = %Options{
+      # Per-query options (override global defaults)
+      ClaudeAgent.query("Tell me a joke",
         system_prompt: "You are a helpful assistant",
         allowed_tools: ["Read", "Write"],
         max_turns: 5
-      }
-
-      ClaudeAgent.query("Tell me a joke", opts)
+      )
 
   ## Interactive Client
 
@@ -67,10 +64,10 @@ defmodule ClaudeAgent do
         tools: [add_tool, subtract_tool]
       )
 
-      opts = %Options{
+      ClaudeAgent.query("Calculate 2+2",
         mcp_servers: %{"calc" => calculator},
         allowed_tools: ["mcp__calc__add"]
-      }
+      )
   """
 
   alias ClaudeAgent.{Options, Query}
@@ -86,6 +83,44 @@ defmodule ClaudeAgent do
   def version, do: @version
 
   @doc """
+  Get the current configuration from application environment.
+
+  Returns the default options configured in your application's config files
+  or set via `Application.put_env/3`. These defaults are applied to all
+  queries unless overridden by per-query options.
+
+  ## Examples
+
+      # In your app's config/config.exs
+      config :claude_agent_sdk,
+        cli_path: "/path/to/claude",
+        permission_mode: :bypass_permissions
+
+      # In code
+      ClaudeAgent.get_config()
+      # => [cli_path: "/path/to/claude", permission_mode: :bypass_permissions, ...]
+
+  ## Configuration
+
+  Configure the SDK in your application's config files:
+
+  - `config/config.exs` - Base configuration
+  - `config/dev.exs` - Development overrides
+  - `config/test.exs` - Test overrides
+  - `config/runtime.exs` - Runtime configuration from environment variables
+
+  See `ClaudeAgent.Options` for available configuration options.
+  """
+  @spec get_config() :: Options.t()
+  def get_config do
+    # Get all claude_agent_sdk config and convert to keyword list
+    case Application.get_all_env(:claude_agent_sdk) do
+      [] -> Options.defaults()
+      config -> config
+    end
+  end
+
+  @doc """
   Execute a one-shot query and return a stream of messages.
 
   This is the simplest way to interact with Claude. For more control,
@@ -94,7 +129,7 @@ defmodule ClaudeAgent do
   ## Parameters
 
   - `prompt` - The prompt to send to Claude
-  - `options` - Optional `ClaudeAgent.Options` struct
+  - `options` - Optional keyword list of options (see `ClaudeAgent.Options`)
 
   ## Returns
 
@@ -107,8 +142,10 @@ defmodule ClaudeAgent do
       |> Enum.each(&IO.inspect/1)
 
       # With options
-      opts = %Options{system_prompt: "Be concise", max_turns: 1}
-      ClaudeAgent.query("Explain Elixir", opts)
+      ClaudeAgent.query("Explain Elixir",
+        system_prompt: "Be concise",
+        max_turns: 1
+      )
       |> Stream.filter(&match?(%AssistantMessage{}, &1))
       |> Enum.each(&print_response/1)
 
@@ -124,9 +161,10 @@ defmodule ClaudeAgent do
   - `CLIConnectionError` - Connection failed
   - `ProcessError` - CLI process failed
   """
-  @spec query(String.t(), Options.t() | nil) :: Enumerable.t()
-  def query(prompt, options \\ nil) when is_binary(prompt) do
-    Query.run(prompt, options || %Options{})
+  @spec query(String.t(), Options.t()) :: Enumerable.t()
+  def query(prompt, options \\ []) when is_binary(prompt) and is_list(options) do
+    merged_options = Options.merge(get_config(), options)
+    Query.run(prompt, merged_options)
   end
 
   @doc """
@@ -139,8 +177,8 @@ defmodule ClaudeAgent do
       text = ClaudeAgent.query_text("What is 2+2?")
       # => "2 + 2 = 4"
   """
-  @spec query_text(String.t(), Options.t() | nil) :: String.t()
-  def query_text(prompt, options \\ nil) do
+  @spec query_text(String.t(), Options.t()) :: String.t()
+  def query_text(prompt, options \\ []) when is_list(options) do
     prompt
     |> query(options)
     |> Stream.flat_map(fn
@@ -166,8 +204,8 @@ defmodule ClaudeAgent do
       result = ClaudeAgent.query_result("Do something")
       IO.puts("Cost: $\#{result.total_cost_usd}")
   """
-  @spec query_result(String.t(), Options.t() | nil) :: ResultMessage.t() | nil
-  def query_result(prompt, options \\ nil) do
+  @spec query_result(String.t(), Options.t()) :: ResultMessage.t() | nil
+  def query_result(prompt, options \\ []) when is_list(options) do
     prompt
     |> query(options)
     |> Enum.find(&match?(%ResultMessage{}, &1))

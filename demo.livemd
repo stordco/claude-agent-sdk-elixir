@@ -2,9 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:claude_agent_sdk, path: "."},
-  {:pythonx, "~> 0.4.2"},
-  {:kino_pythonx, "~> 0.1.0"}
+  {:claude_agent_sdk, path: __DIR__}
 ])
 ```
 
@@ -17,6 +15,28 @@ This LiveBook demonstrates the **Claude Agent SDK for Elixir** - an SDK for inte
 > ```bash
 > npm install -g @anthropic-ai/claude-code
 > ```
+
+## Configuration
+
+Configure defaults at runtime for this notebook session:
+
+```elixir
+# Configure defaults (applies to all queries in this notebook)
+Application.put_env(:claude_agent_sdk, :permission_mode, :bypass_permissions)
+Application.put_env(:claude_agent_sdk, :max_turns, 10)
+```
+
+**Note:** In an Elixir application, you would configure this in your app's `config/config.exs`:
+
+```elixir
+import Config
+
+# In your app's config/config.exs
+config :claude_agent_sdk,
+  cli_path: "/path/to/claude",
+  permission_mode: :bypass_permissions,
+  max_turns: 10
+```
 
 ## Quick Start: Simple Query
 
@@ -52,7 +72,8 @@ Stream all messages as they arrive for more control:
 alias ClaudeAgent.Types.Messages.{AssistantMessage, SystemMessage, ResultMessage}
 alias ClaudeAgent.Types.ContentBlocks.TextBlock
 
-ClaudeAgent.query("Explain pattern matching in Elixir in 2 sentences.")
+"Explain pattern matching in Elixir in 2 sentences."
+|> ClaudeAgent.query()
 |> Enum.each(fn
   %SystemMessage{} = msg ->
     IO.puts("📍 System: #{msg.subtype}")
@@ -76,16 +97,10 @@ end)
 Configure Claude's behavior with options:
 
 ```elixir
-alias ClaudeAgent.Options
-
-opts = %Options{
-  system_prompt: "You are a helpful Elixir expert. Be concise.",
-  max_turns: 3
-}
-
 ClaudeAgent.query_text(
   "What's the difference between `=` and `<-` in Elixir?",
-  opts
+  system_prompt: "You are a helpful Elixir expert. Be concise.",
+  max_turns: 3
 )
 ```
 
@@ -95,7 +110,6 @@ The `Client` module enables stateful, multi-turn conversations where Claude reme
 
 ```elixir
 alias ClaudeAgent.Client
-alias ClaudeAgent.Options
 alias ClaudeAgent.Types.Messages.{AssistantMessage, ResultMessage}
 alias ClaudeAgent.Types.ContentBlocks.TextBlock
 
@@ -110,7 +124,7 @@ extract_text = fn messages ->
 end
 
 # Start client with bypass permissions (for demo purposes)
-{:ok, client} = Client.start_link(%Options{permission_mode: :bypass_permissions})
+{:ok, client} = Client.start_link(permission_mode: :bypass_permissions)
 
 IO.puts("Client started!")
 client
@@ -168,18 +182,12 @@ IO.puts("✅ Client disconnected")
 Claude can use tools like reading files. Here's an example with tool permissions:
 
 ```elixir
-alias ClaudeAgent.Options
-
-opts = %Options{
-  allowed_tools: ["Read", "Glob"],
-  permission_mode: :bypass_permissions,
-  cwd: File.cwd!()
-}
-
 # Ask Claude to read a file
 ClaudeAgent.query_text(
   "Read the mix.exs file and tell me the package name and version.",
-  opts
+  allowed_tools: ["Read", "Glob"],
+  permission_mode: :bypass_permissions,
+  cwd: File.cwd!()
 )
 ```
 
@@ -191,13 +199,12 @@ See exactly what tools Claude uses:
 alias ClaudeAgent.Types.Messages.AssistantMessage
 alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
 
-opts = %Options{
+"What's in the README.md? Summarize in one sentence."
+|> ClaudeAgent.query(
   allowed_tools: ["Read"],
   permission_mode: :bypass_permissions,
   cwd: File.cwd!()
-}
-
-ClaudeAgent.query("What's in the README.md? Summarize in one sentence.", opts)
+)
 |> Enum.each(fn
   %AssistantMessage{content: blocks} ->
     Enum.each(blocks, fn
@@ -227,7 +234,7 @@ end)
 Get information about the Claude Code server capabilities:
 
 ```elixir
-{:ok, client} = Client.start_link(%Options{permission_mode: :bypass_permissions})
+{:ok, client} = Client.start_link(permission_mode: :bypass_permissions)
 
 # Must connect first (or call query) before server_info is available
 :ok = Client.connect(client)

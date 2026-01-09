@@ -62,24 +62,24 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   ## Options
 
   - `:prompt` - The initial prompt (string or nil for streaming mode)
-  - `:options` - ClaudeAgent.Options struct
+  - `:options` - Keyword list of options (see `ClaudeAgent.Options`)
 
   ## Examples
 
-      transport = SubprocessCli.new("What is 2+2?", %Options{})
+      transport = SubprocessCli.new("What is 2+2?", [])
       {:ok, transport} = SubprocessCli.connect(transport)
   """
   @spec new(String.t() | nil, Options.t()) :: t()
-  def new(prompt, %Options{} = options) do
-    cli_path = options.cli_path || find_cli()
+  def new(prompt, options) when is_list(options) do
+    cli_path = Options.get(options, :cli_path) || find_cli()
 
     %__MODULE__{
       prompt: prompt,
       options: options,
       cli_path: cli_path,
-      cwd: options.cwd,
+      cwd: Options.get(options, :cwd),
       buffer: "",
-      max_buffer_size: options.max_buffer_size || @default_max_buffer_size
+      max_buffer_size: Options.get(options, :max_buffer_size, @default_max_buffer_size)
     }
   end
 
@@ -417,7 +417,7 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
 
     args =
       ["--output-format", "stream-json", "--verbose"]
-      |> add_system_prompt_args(opts.system_prompt)
+      |> add_system_prompt_args(Options.get(opts, :system_prompt))
       |> add_tools_args(opts)
       |> add_permission_args(opts)
       |> add_session_args(opts)
@@ -437,7 +437,7 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   defp maybe_optimize_cmd_length(args, opts) do
     cmd_str = Enum.join(args, " ")
 
-    if String.length(cmd_str) > @cmd_length_limit and opts.agents do
+    if String.length(cmd_str) > @cmd_length_limit and Options.get(opts, :agents) do
       # Command is too long - use temp file for agents
       optimize_agents_arg(args)
     else
@@ -502,88 +502,104 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
 
   defp add_system_prompt_args(args, %{type: :preset}), do: args
 
-  defp add_tools_args(args, %{tools: nil}), do: args
+  defp add_tools_args(args, opts) do
+    case Options.get(opts, :tools) do
+      nil ->
+        args
 
-  defp add_tools_args(args, %{tools: tools}) when is_list(tools) do
-    if tools == [] do
-      args ++ ["--tools", ""]
-    else
-      args ++ ["--tools", Enum.join(tools, ",")]
+      tools when is_list(tools) ->
+        if tools == [] do
+          args ++ ["--tools", ""]
+        else
+          args ++ ["--tools", Enum.join(tools, ",")]
+        end
+
+      %{type: :preset} ->
+        args ++ ["--tools", "default"]
     end
   end
 
-  defp add_tools_args(args, %{tools: %{type: :preset}}), do: args ++ ["--tools", "default"]
-
   defp add_permission_args(args, opts) do
     args
-    |> maybe_add("--allowedTools", opts.allowed_tools, &Enum.join(&1, ","))
-    |> maybe_add("--disallowedTools", opts.disallowed_tools, &Enum.join(&1, ","))
-    |> maybe_add("--permission-mode", opts.permission_mode, &permission_mode_to_string/1)
-    |> maybe_add("--permission-prompt-tool", opts.permission_prompt_tool_name)
+    |> maybe_add("--allowedTools", Options.get(opts, :allowed_tools), &Enum.join(&1, ","))
+    |> maybe_add("--disallowedTools", Options.get(opts, :disallowed_tools), &Enum.join(&1, ","))
+    |> maybe_add(
+      "--permission-mode",
+      Options.get(opts, :permission_mode),
+      &permission_mode_to_string/1
+    )
+    |> maybe_add("--permission-prompt-tool", Options.get(opts, :permission_prompt_tool_name))
   end
 
   defp add_session_args(args, opts) do
     args
-    |> maybe_add_flag("--continue", opts.continue_conversation)
-    |> maybe_add("--resume", opts.resume)
-    |> maybe_add_flag("--fork-session", opts.fork_session)
-    |> maybe_add_flag("--include-partial-messages", opts.include_partial_messages)
+    |> maybe_add_flag("--continue", Options.get(opts, :continue_conversation))
+    |> maybe_add("--resume", Options.get(opts, :resume))
+    |> maybe_add_flag("--fork-session", Options.get(opts, :fork_session))
+    |> maybe_add_flag("--include-partial-messages", Options.get(opts, :include_partial_messages))
   end
 
   defp add_model_args(args, opts) do
     args
-    |> maybe_add("--model", opts.model)
-    |> maybe_add("--fallback-model", opts.fallback_model)
-    |> maybe_add("--max-turns", opts.max_turns, &to_string/1)
-    |> maybe_add("--max-budget-usd", opts.max_budget_usd, &to_string/1)
-    |> maybe_add("--max-thinking-tokens", opts.max_thinking_tokens, &to_string/1)
-    |> maybe_add("--betas", opts.betas, &Enum.join(&1, ","))
+    |> maybe_add("--model", Options.get(opts, :model))
+    |> maybe_add("--fallback-model", Options.get(opts, :fallback_model))
+    |> maybe_add("--max-turns", Options.get(opts, :max_turns), &to_string/1)
+    |> maybe_add("--max-budget-usd", Options.get(opts, :max_budget_usd), &to_string/1)
+    |> maybe_add("--max-thinking-tokens", Options.get(opts, :max_thinking_tokens), &to_string/1)
+    |> maybe_add("--betas", Options.get(opts, :betas), &Enum.join(&1, ","))
   end
 
-  defp add_mcp_args(args, %{mcp_servers: nil}), do: args
+  defp add_mcp_args(args, opts) do
+    case Options.get(opts, :mcp_servers) do
+      nil ->
+        args
 
-  defp add_mcp_args(args, %{mcp_servers: servers}) when is_binary(servers) do
-    args ++ ["--mcp-config", servers]
-  end
+      servers when is_binary(servers) ->
+        args ++ ["--mcp-config", servers]
 
-  defp add_mcp_args(args, %{mcp_servers: servers}) when is_map(servers) do
-    # Filter out SDK server instances and convert to JSON
-    servers_for_cli =
-      servers
-      |> Enum.map(fn {name, config} ->
-        case config do
-          %{type: :sdk} = sdk_config ->
-            {name, Map.delete(sdk_config, :instance)}
+      servers when is_map(servers) ->
+        # Filter out SDK server instances and convert to JSON
+        servers_for_cli =
+          servers
+          |> Enum.map(fn {name, config} ->
+            case config do
+              %{type: :sdk} = sdk_config ->
+                {name, Map.delete(sdk_config, :instance)}
 
-          config ->
-            {name, config}
+              config ->
+                {name, config}
+            end
+          end)
+          |> Map.new()
+
+        if map_size(servers_for_cli) > 0 do
+          config_json = Jason.encode!(%{"mcpServers" => servers_for_cli})
+          args ++ ["--mcp-config", config_json]
+        else
+          args
         end
-      end)
-      |> Map.new()
-
-    if map_size(servers_for_cli) > 0 do
-      config_json = Jason.encode!(%{"mcpServers" => servers_for_cli})
-      args ++ ["--mcp-config", config_json]
-    else
-      args
     end
   end
 
-  defp add_agent_args(args, %{agents: nil}), do: args
+  defp add_agent_args(args, opts) do
+    case Options.get(opts, :agents) do
+      nil ->
+        args
 
-  defp add_agent_args(args, %{agents: agents}) when is_map(agents) do
-    agents_json = Jason.encode!(agents)
-    args ++ ["--agents", agents_json]
+      agents when is_map(agents) ->
+        agents_json = Jason.encode!(agents)
+        args ++ ["--agents", agents_json]
+    end
   end
 
   defp add_misc_args(args, opts) do
     args
     |> add_settings_args(opts)
-    |> add_dirs_args(opts.add_dirs)
-    |> add_setting_sources_args(opts.setting_sources)
-    |> add_plugins_args(opts.plugins)
-    |> add_extra_args(opts.extra_args)
-    |> add_output_format_args(opts.output_format)
+    |> add_dirs_args(Options.get(opts, :add_dirs, []))
+    |> add_setting_sources_args(Options.get(opts, :setting_sources))
+    |> add_plugins_args(Options.get(opts, :plugins, []))
+    |> add_extra_args(Options.get(opts, :extra_args, %{}))
+    |> add_output_format_args(Options.get(opts, :output_format))
   end
 
   # Build settings value, merging sandbox settings if provided.
@@ -591,24 +607,30 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   # - A JSON string (if sandbox is provided or settings is JSON)
   # - A file path (if only settings path is provided without sandbox)
   # - nil if neither settings nor sandbox is provided
-  defp add_settings_args(args, %{settings: nil, sandbox: nil}), do: args
+  defp add_settings_args(args, opts) do
+    settings = Options.get(opts, :settings)
+    sandbox = Options.get(opts, :sandbox)
 
-  defp add_settings_args(args, %{settings: settings, sandbox: nil}) when not is_nil(settings) do
-    # If only settings path and no sandbox, pass through as-is
-    args ++ ["--settings", settings]
-  end
+    cond do
+      is_nil(settings) and is_nil(sandbox) ->
+        args
 
-  defp add_settings_args(args, %{settings: settings, sandbox: sandbox}) do
-    # If we have sandbox settings, we need to merge into a JSON object
-    settings_obj = load_settings_object(settings)
+      not is_nil(settings) and is_nil(sandbox) ->
+        # If only settings path and no sandbox, pass through as-is
+        args ++ ["--settings", settings]
 
-    # Merge sandbox settings
-    merged = if sandbox, do: Map.put(settings_obj, "sandbox", sandbox), else: settings_obj
+      true ->
+        # If we have sandbox settings, we need to merge into a JSON object
+        settings_obj = load_settings_object(settings)
 
-    if map_size(merged) > 0 do
-      args ++ ["--settings", Jason.encode!(merged)]
-    else
-      args
+        # Merge sandbox settings
+        merged = if sandbox, do: Map.put(settings_obj, "sandbox", sandbox), else: settings_obj
+
+        if map_size(merged) > 0 do
+          args ++ ["--settings", Jason.encode!(merged)]
+        else
+          args
+        end
     end
   end
 
@@ -834,12 +856,12 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
     opts = if transport.cwd, do: [{:cd, transport.cwd} | opts], else: opts
 
     env_list =
-      transport.options.env
+      Options.get(transport.options, :env, %{})
       |> Map.put("CLAUDE_CODE_ENTRYPOINT", "sdk-elixir")
       |> Map.put("CLAUDE_AGENT_SDK_VERSION", ClaudeAgent.version())
       |> maybe_put_env(
         "CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING",
-        transport.options.enable_file_checkpointing
+        Options.get(transport.options, :enable_file_checkpointing)
       )
       |> maybe_put_env("PWD", transport.cwd)
       |> Enum.map(fn {k, v} -> {String.to_charlist(k), String.to_charlist(v)} end)

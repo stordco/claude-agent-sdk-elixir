@@ -30,6 +30,7 @@ defmodule ClaudeAgent.Protocol.QueryHandler do
   require Logger
 
   alias ClaudeAgent.Hooks.HookMatcher
+  alias ClaudeAgent.Options
   alias ClaudeAgent.Transport.SubprocessCli
 
   alias ClaudeAgent.Types.Permissions.{
@@ -150,7 +151,7 @@ defmodule ClaudeAgent.Protocol.QueryHandler do
 
     # Extract SDK MCP servers
     sdk_mcp_servers =
-      case options.mcp_servers do
+      case Options.get(options, :mcp_servers) do
         servers when is_map(servers) ->
           servers
           |> Enum.filter(fn {_name, config} ->
@@ -201,7 +202,8 @@ defmodule ClaudeAgent.Protocol.QueryHandler do
   @impl true
   def handle_call(:initialize, from, state) do
     # Build hooks configuration
-    {hooks_config, callback_map} = build_hooks_config(state.options.hooks, state.next_callback_id)
+    {hooks_config, callback_map} =
+      build_hooks_config(Options.get(state.options, :hooks), state.next_callback_id)
 
     # Build initialize request
     request = %{
@@ -479,7 +481,7 @@ defmodule ClaudeAgent.Protocol.QueryHandler do
   end
 
   defp handle_permission_request(request_data, state) do
-    case state.options.can_use_tool do
+    case Options.get(state.options, :can_use_tool) do
       nil ->
         {:error, "can_use_tool callback is not provided"}
 

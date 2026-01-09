@@ -28,7 +28,7 @@ defmodule ClaudeAgent.Query do
   ## Parameters
 
   - `prompt` - The prompt string to send
-  - `options` - `ClaudeAgent.Options` struct
+  - `options` - Keyword list of options (see `ClaudeAgent.Options`)
 
   ## Returns
 
@@ -36,24 +36,23 @@ defmodule ClaudeAgent.Query do
 
   ## Examples
 
-      Query.run("Hello", %Options{})
+      Query.run("Hello", [])
+      |> Enum.each(&IO.inspect/1)
+
+      Query.run("Hello", max_turns: 5, system_prompt: "Be helpful")
       |> Enum.each(&IO.inspect/1)
   """
   @spec run(String.t(), Options.t()) :: Enumerable.t()
-  def run(prompt, %Options{} = options) when is_binary(prompt) do
-    # Validate options
-    case Options.validate(options) do
-      :ok -> :ok
-      {:error, errors} -> raise ArgumentError, "Invalid options: #{inspect(errors)}"
-    end
+  def run(prompt, options \\ []) when is_binary(prompt) and is_list(options) do
+    # Normalize and validate options
+    options = Options.normalize!(options)
 
     # Check if streaming mode is required but not available for simple query
     if Options.requires_streaming?(options) do
       raise ArgumentError, """
       This query requires streaming mode because it uses:
-      #{if options.can_use_tool, do: "- can_use_tool callback", else: ""}
-      #{if options.hooks, do: "- hooks configuration", else: ""}
-
+      #{if Options.get(options, :can_use_tool), do: "- can_use_tool callback\n", else: ""}
+      #{if Options.get(options, :hooks), do: "- hooks configuration\n", else: ""}
       Please use ClaudeAgent.Client for these features.
       """
     end

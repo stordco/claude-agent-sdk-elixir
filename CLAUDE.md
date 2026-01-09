@@ -6,6 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is an Elixir port of the official Claude Agent SDK, providing a client library for interacting with Claude through the Claude Code CLI. It communicates with the CLI via JSON over stdin/stdout using Elixir Ports.
 
+## Configuration
+
+The SDK follows idiomatic Elixir library patterns for configuration:
+
+- **Built-in defaults** are defined in `ClaudeAgent.Options.defaults/0`
+- **Consumer applications** configure the SDK in their own `config/*.exs` files
+- **Per-query options** override application config when passed to functions
+
+The library itself does not include config files (as is standard for Elixir libraries). Instead, consuming applications add configuration like:
+
+```elixir
+# In the consumer app's config/config.exs
+config :claude_agent_sdk,
+  cli_path: "/path/to/claude",
+  permission_mode: :bypass_permissions
+```
+
+Configuration precedence: built-in defaults < application config < per-query options
+
 ## Development Commands
 
 ```bash

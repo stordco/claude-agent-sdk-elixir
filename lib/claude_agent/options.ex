@@ -2,22 +2,22 @@ defmodule ClaudeAgent.Options do
   @moduledoc """
   Configuration options for Claude Agent SDK queries.
 
-  This struct contains all configurable options for interacting with Claude,
-  including tool permissions, system prompts, MCP servers, hooks, and more.
+  All functions in the SDK accept options as keyword lists, following standard
+  Elixir conventions.
 
   ## Basic Usage
 
       # Simple options
-      opts = %ClaudeAgent.Options{
+      ClaudeAgent.query("Hello",
         system_prompt: "You are a helpful assistant",
         max_turns: 5
-      }
+      )
 
       # With tools
-      opts = %ClaudeAgent.Options{
+      ClaudeAgent.query("Fix this bug",
         allowed_tools: ["Read", "Write", "Bash"],
         permission_mode: :accept_edits
-      }
+      )
 
   ## Permission Modes
 
@@ -133,120 +133,233 @@ defmodule ClaudeAgent.Options do
           model: :sonnet | :opus | :haiku | :inherit | nil
         }
 
-  @type t :: %__MODULE__{
-          tools: [String.t()] | tools_preset() | nil,
-          allowed_tools: [String.t()],
-          system_prompt: String.t() | system_prompt_preset() | nil,
-          mcp_servers: %{String.t() => mcp_server_config()} | String.t() | nil,
-          permission_mode: permission_mode() | nil,
-          continue_conversation: boolean(),
-          resume: String.t() | nil,
-          max_turns: pos_integer() | nil,
-          max_budget_usd: float() | nil,
-          disallowed_tools: [String.t()],
-          model: String.t() | nil,
-          fallback_model: String.t() | nil,
-          betas: [String.t()],
-          permission_prompt_tool_name: String.t() | nil,
-          cwd: String.t() | nil,
-          cli_path: String.t() | nil,
-          settings: String.t() | nil,
-          add_dirs: [String.t()],
-          env: %{String.t() => String.t()},
-          extra_args: %{String.t() => String.t() | nil},
-          max_buffer_size: pos_integer() | nil,
-          stderr_callback: (String.t() -> any()) | nil,
-          can_use_tool: Permissions.can_use_tool_callback() | nil,
-          hooks: %{HookMatcher.hook_event() => [HookMatcher.t()]} | nil,
-          user: String.t() | nil,
-          include_partial_messages: boolean(),
-          fork_session: boolean(),
-          agents: %{String.t() => agent_definition()} | nil,
-          setting_sources: [setting_source()] | nil,
-          sandbox: sandbox_settings() | nil,
-          plugins: [plugin_config()],
-          max_thinking_tokens: pos_integer() | nil,
-          output_format: map() | nil,
-          enable_file_checkpointing: boolean()
-        }
+  @type t :: [
+          {:tools, [String.t()] | tools_preset() | nil}
+          | {:allowed_tools, [String.t()]}
+          | {:system_prompt, String.t() | system_prompt_preset() | nil}
+          | {:mcp_servers, %{String.t() => mcp_server_config()} | String.t() | nil}
+          | {:permission_mode, permission_mode() | nil}
+          | {:continue_conversation, boolean()}
+          | {:resume, String.t() | nil}
+          | {:max_turns, pos_integer() | nil}
+          | {:max_budget_usd, float() | nil}
+          | {:disallowed_tools, [String.t()]}
+          | {:model, String.t() | nil}
+          | {:fallback_model, String.t() | nil}
+          | {:betas, [String.t()]}
+          | {:permission_prompt_tool_name, String.t() | nil}
+          | {:cwd, String.t() | nil}
+          | {:cli_path, String.t() | nil}
+          | {:settings, String.t() | nil}
+          | {:add_dirs, [String.t()]}
+          | {:env, %{String.t() => String.t()}}
+          | {:extra_args, %{String.t() => String.t() | nil}}
+          | {:max_buffer_size, pos_integer() | nil}
+          | {:stderr_callback, (String.t() -> any()) | nil}
+          | {:can_use_tool, Permissions.can_use_tool_callback() | nil}
+          | {:hooks, %{HookMatcher.hook_event() => [HookMatcher.t()]} | nil}
+          | {:user, String.t() | nil}
+          | {:include_partial_messages, boolean()}
+          | {:fork_session, boolean()}
+          | {:agents, %{String.t() => agent_definition()} | nil}
+          | {:setting_sources, [setting_source()] | nil}
+          | {:sandbox, sandbox_settings() | nil}
+          | {:plugins, [plugin_config()]}
+          | {:max_thinking_tokens, pos_integer() | nil}
+          | {:output_format, map() | nil}
+          | {:enable_file_checkpointing, boolean()}
+        ]
 
-  defstruct tools: nil,
-            allowed_tools: [],
-            system_prompt: nil,
-            mcp_servers: nil,
-            permission_mode: nil,
-            continue_conversation: false,
-            resume: nil,
-            max_turns: nil,
-            max_budget_usd: nil,
-            disallowed_tools: [],
-            model: nil,
-            fallback_model: nil,
-            betas: [],
-            permission_prompt_tool_name: nil,
-            cwd: nil,
-            cli_path: nil,
-            settings: nil,
-            add_dirs: [],
-            env: %{},
-            extra_args: %{},
-            max_buffer_size: nil,
-            stderr_callback: nil,
-            can_use_tool: nil,
-            hooks: nil,
-            user: nil,
-            include_partial_messages: false,
-            fork_session: false,
-            agents: nil,
-            setting_sources: nil,
-            sandbox: nil,
-            plugins: [],
-            max_thinking_tokens: nil,
-            output_format: nil,
-            enable_file_checkpointing: false
+  @defaults [
+    tools: nil,
+    allowed_tools: [],
+    system_prompt: nil,
+    mcp_servers: nil,
+    permission_mode: nil,
+    continue_conversation: false,
+    resume: nil,
+    max_turns: nil,
+    max_budget_usd: nil,
+    disallowed_tools: [],
+    model: nil,
+    fallback_model: nil,
+    betas: [],
+    permission_prompt_tool_name: nil,
+    cwd: nil,
+    cli_path: nil,
+    settings: nil,
+    add_dirs: [],
+    env: %{},
+    extra_args: %{},
+    max_buffer_size: nil,
+    stderr_callback: nil,
+    can_use_tool: nil,
+    hooks: nil,
+    user: nil,
+    include_partial_messages: false,
+    fork_session: false,
+    agents: nil,
+    setting_sources: nil,
+    sandbox: nil,
+    plugins: [],
+    max_thinking_tokens: nil,
+    output_format: nil,
+    enable_file_checkpointing: false
+  ]
 
   @doc """
-  Create new Options with the given keyword list.
+  Returns default options as a keyword list.
 
   ## Examples
 
-      opts = ClaudeAgent.Options.new(
+      defaults = ClaudeAgent.Options.defaults()
+      defaults[:max_turns]  # => nil
+      defaults[:allowed_tools]  # => []
+  """
+  @spec defaults() :: t()
+  def defaults, do: @defaults
+
+  @doc """
+  Normalize and validate options.
+
+  Takes a keyword list and:
+  1. Merges with defaults
+  2. Validates all constraints
+  3. Returns normalized keyword list
+
+  ## Examples
+
+      opts = ClaudeAgent.Options.normalize(
         system_prompt: "You are helpful",
-        allowed_tools: ["Read", "Write"]
+        max_turns: 5
       )
   """
-  @spec new(keyword()) :: t()
-  def new(opts \\ []) do
-    struct(__MODULE__, opts)
+  @spec normalize(t()) :: {:ok, t()} | {:error, [String.t()]}
+  def normalize(opts \\ []) when is_list(opts) do
+    normalized = merge_with_defaults(opts)
+
+    case validate(normalized) do
+      :ok -> {:ok, normalized}
+      {:error, _} = error -> error
+    end
   end
 
   @doc """
-  Merge options, with the second taking precedence.
+  Normalize and validate options, raising on error.
 
-  Only non-nil values from the second options override the first.
+  Like `normalize/1` but raises `ArgumentError` if validation fails.
+
+  ## Examples
+
+      opts = ClaudeAgent.Options.normalize!(
+        system_prompt: "You are helpful",
+        max_turns: 5
+      )
   """
-  @spec merge(t(), t() | keyword()) :: t()
-  def merge(%__MODULE__{} = base, overrides) when is_list(overrides) do
-    merge(base, new(overrides))
+  @spec normalize!(t()) :: t()
+  def normalize!(opts \\ []) do
+    case normalize(opts) do
+      {:ok, normalized} -> normalized
+      {:error, errors} -> raise ArgumentError, "Invalid options: #{Enum.join(errors, ", ")}"
+    end
   end
 
-  def merge(%__MODULE__{} = base, %__MODULE__{} = overrides) do
-    base
-    |> Map.from_struct()
-    |> Enum.reduce(%{}, fn {key, base_value}, acc ->
-      override_value = Map.get(overrides, key)
+  @doc """
+  Merge options with defaults, with provided options taking precedence.
 
-      value =
-        cond do
-          is_nil(override_value) -> base_value
-          is_list(override_value) and override_value == [] -> base_value
-          is_map(override_value) and override_value == %{} -> base_value
-          true -> override_value
-        end
+  Only non-nil, non-empty values from the provided options override defaults.
 
-      Map.put(acc, key, value)
+  ## Examples
+
+      merged = ClaudeAgent.Options.merge_with_defaults(
+        system_prompt: "Custom prompt",
+        max_turns: 3
+      )
+  """
+  @spec merge_with_defaults(t()) :: t()
+  def merge_with_defaults(opts) when is_list(opts) do
+    Keyword.merge(@defaults, opts, fn _key, default, override ->
+      cond do
+        is_nil(override) -> default
+        is_list(override) and override == [] -> default
+        is_map(override) and override == %{} -> default
+        true -> override
+      end
     end)
-    |> then(&struct(__MODULE__, &1))
+  end
+
+  @doc """
+  Merge two option keyword lists, with the second taking precedence.
+
+  Only non-nil, non-empty values from the second options override the first.
+
+  ## Examples
+
+      base = [max_turns: 5, system_prompt: "Be helpful"]
+      overrides = [max_turns: 10]
+      merged = ClaudeAgent.Options.merge(base, overrides)
+      # => [max_turns: 10, system_prompt: "Be helpful", ...]
+  """
+  @spec merge(t(), t()) :: t()
+  def merge(base, overrides) when is_list(base) and is_list(overrides) do
+    Keyword.merge(base, overrides, fn _key, base_value, override_value ->
+      cond do
+        is_nil(override_value) -> base_value
+        is_list(override_value) and override_value == [] -> base_value
+        is_map(override_value) and override_value == %{} -> base_value
+        true -> override_value
+      end
+    end)
+  end
+
+  @doc """
+  Load options from application environment.
+
+  Reads configuration from `:claude_agent_sdk` application environment and merges
+  with provided options, with provided options taking precedence.
+
+  ## Examples
+
+      # In your app's config/config.exs
+      config :claude_agent_sdk,
+        permission_mode: :bypass_permissions,
+        max_turns: 10
+
+      # In code - application config values are used as defaults
+      opts = ClaudeAgent.Options.from_app_env(system_prompt: "Be concise")
+      # => [permission_mode: :bypass_permissions, max_turns: 10, system_prompt: "Be concise", ...]
+
+      # Query-specific options override application config
+      opts = ClaudeAgent.Options.from_app_env(max_turns: 5)
+      # => [permission_mode: :bypass_permissions, max_turns: 5, ...]
+  """
+  @spec from_app_env(t()) :: t()
+  def from_app_env(query_options \\ []) when is_list(query_options) do
+    app_config =
+      case Application.get_all_env(:claude_agent_sdk) do
+        [] -> []
+        config -> config
+      end
+
+    # Merge: defaults < app_config < query_options
+    @defaults
+    |> merge(app_config)
+    |> merge(query_options)
+  end
+
+  @doc """
+  Get a value from options with a default fallback.
+
+  ## Examples
+
+      opts = [max_turns: 5]
+      ClaudeAgent.Options.get(opts, :max_turns)  # => 5
+      ClaudeAgent.Options.get(opts, :model)  # => nil
+      ClaudeAgent.Options.get(opts, :model, "sonnet")  # => "sonnet"
+  """
+  @spec get(t(), atom(), any()) :: any()
+  def get(opts, key, default \\ nil) when is_list(opts) and is_atom(key) do
+    Keyword.get(opts, key, default)
   end
 
   @doc """
@@ -255,11 +368,20 @@ defmodule ClaudeAgent.Options do
   Streaming is required when using:
   - `can_use_tool` callback
   - `hooks` configuration
+
+  ## Examples
+
+      ClaudeAgent.Options.requires_streaming?(can_use_tool: &my_callback/2)
+      # => true
+
+      ClaudeAgent.Options.requires_streaming?(max_turns: 5)
+      # => false
   """
   @spec requires_streaming?(t()) :: boolean()
-  def requires_streaming?(%__MODULE__{can_use_tool: callback}) when not is_nil(callback), do: true
-  def requires_streaming?(%__MODULE__{hooks: hooks}) when not is_nil(hooks), do: true
-  def requires_streaming?(_), do: false
+  def requires_streaming?(opts) when is_list(opts) do
+    not is_nil(Keyword.get(opts, :can_use_tool)) or
+      not is_nil(Keyword.get(opts, :hooks))
+  end
 
   @doc """
   Validate options, returning errors if invalid.
@@ -269,16 +391,26 @@ defmodule ClaudeAgent.Options do
   - `can_use_tool` cannot be used with `permission_prompt_tool_name`
   - `max_turns` must be positive if set
   - `max_budget_usd` must be positive if set
+  - `max_thinking_tokens` must be positive if set
+  - `max_buffer_size` must be positive if set
+
+  ## Examples
+
+      ClaudeAgent.Options.validate(max_turns: 5)
+      # => :ok
+
+      ClaudeAgent.Options.validate(max_turns: -1)
+      # => {:error, ["max_turns must be a positive integer, got: -1"]}
   """
   @spec validate(t()) :: :ok | {:error, [String.t()]}
-  def validate(%__MODULE__{} = opts) do
+  def validate(opts) when is_list(opts) do
     errors =
       []
       |> validate_can_use_tool_exclusivity(opts)
-      |> validate_positive_integer(:max_turns, opts.max_turns)
-      |> validate_positive_float(:max_budget_usd, opts.max_budget_usd)
-      |> validate_positive_integer(:max_thinking_tokens, opts.max_thinking_tokens)
-      |> validate_positive_integer(:max_buffer_size, opts.max_buffer_size)
+      |> validate_positive_integer(:max_turns, Keyword.get(opts, :max_turns))
+      |> validate_positive_float(:max_budget_usd, Keyword.get(opts, :max_budget_usd))
+      |> validate_positive_integer(:max_thinking_tokens, Keyword.get(opts, :max_thinking_tokens))
+      |> validate_positive_integer(:max_buffer_size, Keyword.get(opts, :max_buffer_size))
 
     case errors do
       [] -> :ok
@@ -286,15 +418,16 @@ defmodule ClaudeAgent.Options do
     end
   end
 
-  defp validate_can_use_tool_exclusivity(errors, %{
-         can_use_tool: callback,
-         permission_prompt_tool_name: tool_name
-       })
-       when not is_nil(callback) and not is_nil(tool_name) do
-    ["can_use_tool callback cannot be used with permission_prompt_tool_name" | errors]
-  end
+  defp validate_can_use_tool_exclusivity(errors, opts) do
+    can_use_tool = Keyword.get(opts, :can_use_tool)
+    permission_prompt_tool_name = Keyword.get(opts, :permission_prompt_tool_name)
 
-  defp validate_can_use_tool_exclusivity(errors, _), do: errors
+    if not is_nil(can_use_tool) and not is_nil(permission_prompt_tool_name) do
+      ["can_use_tool callback cannot be used with permission_prompt_tool_name" | errors]
+    else
+      errors
+    end
+  end
 
   defp validate_positive_integer(errors, _field, nil), do: errors
 

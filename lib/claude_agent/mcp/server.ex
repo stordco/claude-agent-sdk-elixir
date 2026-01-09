@@ -29,11 +29,11 @@ defmodule ClaudeAgent.Mcp.Server do
       # Create server
       server = Server.new("calculator", tools: [add_tool], version: "1.0.0")
 
-      # Use with options
-      opts = %Options{
+      # Use with ClaudeAgent.query
+      ClaudeAgent.query("Calculate 5 + 3",
         mcp_servers: %{"calc" => %{type: :sdk, instance: server}},
         allowed_tools: ["mcp__calc__add"]
-      }
+      )
 
   ## Handling Requests
 

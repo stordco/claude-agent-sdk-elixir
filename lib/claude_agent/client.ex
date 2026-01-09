@@ -41,15 +41,13 @@ defmodule ClaudeAgent.Client do
 
   ## With Options
 
-      opts = %Options{
+      {:ok, client} = Client.start_link(
         system_prompt: "You are helpful",
         allowed_tools: ["Read", "Bash"],
         hooks: %{
           pre_tool_use: [%HookMatcher{matcher: "Bash", hooks: [&check_cmd/3]}]
         }
-      }
-
-      {:ok, client} = Client.start_link(opts)
+      )
 
   ## Interrupts
 
@@ -92,18 +90,22 @@ defmodule ClaudeAgent.Client do
 
   ## Options
 
-  - `options` - `ClaudeAgent.Options` struct (default: empty options)
-  - GenServer options like `name`, `timeout`, etc.
+  All Claude Agent options can be passed as a keyword list (see `ClaudeAgent.Options`).
+  GenServer options like `name`, `timeout`, etc. can be passed as the second argument.
 
   ## Examples
 
       {:ok, client} = Client.start_link()
-      {:ok, client} = Client.start_link(%Options{max_turns: 5})
-      {:ok, client} = Client.start_link(%Options{}, name: :my_client)
+      {:ok, client} = Client.start_link(max_turns: 5)
+      {:ok, client} = Client.start_link([max_turns: 5], name: :my_client)
   """
   @spec start_link(Options.t(), keyword()) :: GenServer.on_start()
-  def start_link(options \\ %Options{}, opts \\ []) do
-    GenServer.start_link(__MODULE__, options, opts)
+  def start_link(options \\ [], genserver_opts \\ [])
+      when is_list(options) and is_list(genserver_opts) do
+    # Merge with global config, with passed options taking precedence
+    global_config = Application.get_env(:claude_agent_sdk, :default_options, [])
+    merged_options = Options.merge(global_config, options)
+    GenServer.start_link(__MODULE__, merged_options, genserver_opts)
   end
 
   @doc """
