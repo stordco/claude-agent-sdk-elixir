@@ -2,6 +2,7 @@ defmodule ClaudeAgent.AgentsTest do
   use ExUnit.Case, async: true
 
   alias ClaudeAgent.Transport.SubprocessCli
+  alias ClaudeAgent.Subagent
 
   describe "agent definition serialization" do
     test "filters out nil values from agent definitions" do
@@ -285,6 +286,84 @@ defmodule ClaudeAgent.AgentsTest do
 
       assert agent["description"] == "Agent with \"quotes\" and 'apostrophes'"
       assert agent["prompt"] == "Prompt with\nnewlines and\ttabs"
+    end
+  end
+
+  describe "Subagent struct serialization" do
+    test "serializes Subagent struct correctly" do
+      opts = [
+        agents: %{
+          "test-agent" => Subagent.new(
+            "Code reviewer",
+            "Review code for issues",
+            tools: ["Read", "Grep"],
+            model: :sonnet
+          )
+        }
+      ]
+
+      transport = SubprocessCli.new("test", opts)
+      cmd = SubprocessCli.build_command_for_testing(transport)
+
+      agents_idx = Enum.find_index(cmd, &(&1 == "--agents"))
+      agents_json = Enum.at(cmd, agents_idx + 1)
+      agents = Jason.decode!(agents_json)
+
+      agent = agents["test-agent"]
+      assert agent["description"] == "Code reviewer"
+      assert agent["prompt"] == "Review code for issues"
+      assert agent["tools"] == ["Read", "Grep"]
+      assert agent["model"] == "sonnet"
+    end
+
+    test "filters nil values from Subagent struct" do
+      opts = [
+        agents: %{
+          "test-agent" => Subagent.new("Test", "Test prompt")
+        }
+      ]
+
+      transport = SubprocessCli.new("test", opts)
+      cmd = SubprocessCli.build_command_for_testing(transport)
+
+      agents_idx = Enum.find_index(cmd, &(&1 == "--agents"))
+      agents_json = Enum.at(cmd, agents_idx + 1)
+      agents = Jason.decode!(agents_json)
+
+      agent = agents["test-agent"]
+      assert agent["description"] == "Test"
+      assert agent["prompt"] == "Test prompt"
+      refute Map.has_key?(agent, "tools")
+      refute Map.has_key?(agent, "model")
+    end
+
+    test "supports mixed map and Subagent struct" do
+      opts = [
+        agents: %{
+          "struct-agent" => Subagent.new("Struct", "Struct prompt", model: :haiku),
+          "map-agent" => %{
+            description: "Map",
+            prompt: "Map prompt",
+            tools: ["Read"],
+            model: nil
+          }
+        }
+      ]
+
+      transport = SubprocessCli.new("test", opts)
+      cmd = SubprocessCli.build_command_for_testing(transport)
+
+      agents_idx = Enum.find_index(cmd, &(&1 == "--agents"))
+      agents_json = Enum.at(cmd, agents_idx + 1)
+      agents = Jason.decode!(agents_json)
+
+      # Both should serialize correctly
+      assert agents["struct-agent"]["description"] == "Struct"
+      assert agents["struct-agent"]["model"] == "haiku"
+
+      assert agents["map-agent"]["description"] == "Map"
+      assert agents["map-agent"]["tools"] == ["Read"]
+      refute Map.has_key?(agents["map-agent"], "model")
     end
   end
 end

@@ -637,14 +637,21 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
         args
 
       agents when is_map(agents) ->
-        # Filter out nil values from agent definitions to keep JSON payload clean
+        # Convert Subagent structs to maps and filter out nil values
         cleaned_agents =
           agents
           |> Enum.map(fn {name, agent_def} ->
             cleaned_def =
-              agent_def
-              |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-              |> Enum.into(%{})
+              case agent_def do
+                %ClaudeAgent.Subagent{} = subagent ->
+                  ClaudeAgent.Subagent.to_map(subagent)
+
+                # Support legacy map format during transition
+                agent_map when is_map(agent_map) ->
+                  agent_map
+                  |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+                  |> Enum.into(%{})
+              end
 
             {name, cleaned_def}
           end)

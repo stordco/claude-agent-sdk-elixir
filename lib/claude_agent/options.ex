@@ -51,33 +51,37 @@ defmodule ClaudeAgent.Options do
 
   ### Example: Single Agent
 
+      alias ClaudeAgent.Subagent
+
       ClaudeAgent.query("Review this code",
         agents: %{
-          "code-reviewer" => %{
-            description: "Code review specialist",
-            prompt: "You are an expert code reviewer. Focus on correctness, performance, and security.",
+          "code-reviewer" => Subagent.new(
+            "Code review specialist",
+            "You are an expert code reviewer. Focus on correctness, performance, and security.",
             tools: ["Read", "Grep", "Glob"],
             model: :sonnet
-          }
+          )
         }
       )
 
   ### Example: Multiple Agents
 
+      alias ClaudeAgent.Subagent
+
       ClaudeAgent.query("Analyze and test this module",
         agents: %{
-          "analyzer" => %{
-            description: "Code analysis specialist",
-            prompt: "Analyze code structure and patterns",
+          "analyzer" => Subagent.new(
+            "Code analysis specialist",
+            "Analyze code structure and patterns",
             tools: ["Read", "Grep"],
             model: :sonnet
-          },
-          "tester" => %{
-            description: "Test generation specialist",
-            prompt: "Generate comprehensive test cases",
+          ),
+          "tester" => Subagent.new(
+            "Test generation specialist",
+            "Generate comprehensive test cases",
             tools: ["Read", "Write"],
             model: :haiku
-          }
+          )
         }
       )
 
@@ -246,69 +250,26 @@ defmodule ClaudeAgent.Options do
         }
 
   @typedoc """
-  Configuration for a custom subagent.
+  Subagent configuration.
 
-  Subagents allow delegating specialized tasks to agents with custom prompts, tool
-  restrictions, and model configurations. This enables multi-agent workflows.
+  See `ClaudeAgent.Subagent` for full documentation, examples, and usage patterns.
 
-  ## Fields
+  Agents are configured in the `:agents` option as a map of name to `Subagent` struct:
 
-  - `description` (required) - Brief description of what the agent does. This helps
-    Claude understand when to delegate to this agent.
-
-  - `prompt` (required) - System prompt that defines the agent's behavior, personality,
-    and instructions. This is sent to the model when the agent is invoked.
-
-  - `tools` (optional) - List of tool names this agent is allowed to use. When `nil`,
-    the agent has access to all available tools. Use this to restrict agents to specific
-    capabilities for safety or cost control.
-    Examples: `["Read", "Grep"]`, `["WebSearch", "WebFetch"]`, `nil`
-
-  - `model` (optional) - Model override for this agent. Can be:
-    - `:sonnet` - Use Claude Sonnet (balanced performance)
-    - `:opus` - Use Claude Opus (highest capability)
-    - `:haiku` - Use Claude Haiku (fastest, most economical)
-    - `:inherit` or `nil` - Inherit model from parent agent/query
-
-  ## Example
-
-      %{
-        description: "Code review specialist",
-        prompt: "You are an expert code reviewer. Focus on security and performance.",
-        tools: ["Read", "Grep", "Glob"],
-        model: :sonnet
-      }
-
-  ## Usage
-
-  Agents are configured in the `:agents` option as a map of name to agent definition:
+      alias ClaudeAgent.Subagent
 
       ClaudeAgent.query("Review auth module",
         agents: %{
-          "code-reviewer" => %{
-            description: "Security-focused code reviewer",
-            prompt: "Review code for security vulnerabilities",
+          "code-reviewer" => Subagent.new(
+            "Security-focused code reviewer",
+            "Review code for security vulnerabilities",
             tools: ["Read", "Grep"],
             model: :sonnet
-          }
+          )
         }
       )
-
-  Claude will delegate to the agent when appropriate via tool calls:
-
-      Task(subagent_type: "code-reviewer", prompt: "Review auth.ex")
-
-  ## See Also
-
-  - Module documentation for complete subagent examples and patterns
-  - `ClaudeAgent.Hooks.HookMatcher` for `:subagent_stop` hook documentation
   """
-  @type agent_definition :: %{
-          description: String.t(),
-          prompt: String.t(),
-          tools: [String.t()] | nil,
-          model: :sonnet | :opus | :haiku | :inherit | nil
-        }
+  @type agent_definition :: ClaudeAgent.Subagent.t()
 
   @type t :: [
           {:tools, [String.t()] | tools_preset() | nil}

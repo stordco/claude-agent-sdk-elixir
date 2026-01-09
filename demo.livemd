@@ -298,11 +298,13 @@ Content blocks within `AssistantMessage`:
 Subagents allow you to delegate tasks to specialized agents with custom prompts and tool restrictions. This simple example shows the easiest way to use subagents with `query_text`:
 
 ```elixir
+alias ClaudeAgent.Subagent
+
 # Define a code reviewer agent
 agents = %{
-  "code-reviewer" => %{
-    description: "Code review specialist",
-    prompt: """
+  "code-reviewer" => Subagent.new(
+    "Code review specialist",
+    """
     You are an expert code reviewer. When reviewing code:
     1. Focus on correctness and potential bugs
     2. Check for security issues
@@ -311,7 +313,7 @@ agents = %{
     """,
     tools: ["Read", "Grep"],
     model: :sonnet
-  }
+  )
 }
 
 # Use query_text for a simple response
@@ -333,14 +335,15 @@ This is the simplest way to use subagents - just pass the `agents` option to any
 For more control and visibility into the subagent workflow, use streaming. This example shows **streaming responses** with clear indicators when subagents are invoked.
 
 ```elixir
+alias ClaudeAgent.Subagent
 alias ClaudeAgent.Types.Messages.{AssistantMessage, SystemMessage}
 alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
 
 # Define a code reviewer agent
 agents = %{
-  "code-reviewer" => %{
-    description: "Code review specialist",
-    prompt: """
+  "code-reviewer" => Subagent.new(
+    "Code review specialist",
+    """
     You are an expert code reviewer. When reviewing code:
     1. Focus on correctness and potential bugs
     2. Check for security issues
@@ -349,7 +352,7 @@ agents = %{
     """,
     tools: ["Read", "Grep"],
     model: :sonnet
-  }
+  )
 }
 
 # Start a query with the agent configured
@@ -426,22 +429,23 @@ IO.puts("✅ Done!")
 Watch multiple subagents work in real-time with detailed output and visual indicators:
 
 ```elixir
+alias ClaudeAgent.Subagent
 alias ClaudeAgent.Types.Messages.AssistantMessage
 alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
 
 agents = %{
-  "analyzer" => %{
-    description: "Code structure analyzer",
-    prompt: "Analyze code structure and identify patterns. Be brief.",
+  "analyzer" => Subagent.new(
+    "Code structure analyzer",
+    "Analyze code structure and identify patterns. Be brief.",
     tools: ["Read", "Grep"],
     model: :haiku
-  },
-  "security-checker" => %{
-    description: "Security vulnerability checker",
-    prompt: "Check for security issues and vulnerabilities. Be concise.",
+  ),
+  "security-checker" => Subagent.new(
+    "Security vulnerability checker",
+    "Check for security issues and vulnerabilities. Be concise.",
     tools: ["Read", "Grep"],
     model: :haiku
-  }
+  )
 }
 
 {:ok, client} = Client.start_link(

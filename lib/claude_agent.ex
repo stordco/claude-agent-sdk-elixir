@@ -213,4 +213,17 @@ defmodule ClaudeAgent do
 
   # Re-exports for convenience
   defdelegate create_sdk_mcp_server(name, opts \\ []), to: ClaudeAgent.Mcp.Server, as: :new
+
+  @doc """
+  Alias for `ClaudeAgent.Subagent` for convenient imports.
+
+  ## Example
+
+      alias ClaudeAgent.Subagent
+
+      agents = %{
+        "reviewer" => Subagent.new("Code reviewer", "Review code...")
+      }
+  """
+  defdelegate subagent_new(description, prompt, opts \\ []), to: ClaudeAgent.Subagent, as: :new
 end
