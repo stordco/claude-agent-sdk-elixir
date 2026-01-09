@@ -293,12 +293,13 @@ defmodule ClaudeAgent.AgentsTest do
     test "serializes Subagent struct correctly" do
       opts = [
         agents: %{
-          "test-agent" => Subagent.new(
-            "Code reviewer",
-            "Review code for issues",
-            tools: ["Read", "Grep"],
-            model: :sonnet
-          )
+          "test-agent" =>
+            Subagent.new(
+              "Code reviewer",
+              "Review code for issues",
+              tools: ["Read", "Grep"],
+              model: :sonnet
+            )
         }
       ]
 

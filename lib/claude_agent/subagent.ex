@@ -188,6 +188,7 @@ defmodule ClaudeAgent.Subagent do
   defp validate_prompt(_), do: {:error, "prompt must be a non-empty string"}
 
   defp validate_tools(nil), do: :ok
+
   defp validate_tools(tools) when is_list(tools) do
     if Enum.all?(tools, &is_binary/1) do
       :ok
@@ -202,5 +203,6 @@ defmodule ClaudeAgent.Subagent do
   defp validate_model(model) when model in [:sonnet, :opus, :haiku, :inherit], do: :ok
 
   defp validate_model(model),
-    do: {:error, "Invalid model: #{inspect(model)}. Must be :sonnet, :opus, :haiku, :inherit, or nil"}
+    do:
+      {:error, "Invalid model: #{inspect(model)}. Must be :sonnet, :opus, :haiku, :inherit, or nil"}
 end
