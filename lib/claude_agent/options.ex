@@ -34,6 +34,125 @@ defmodule ClaudeAgent.Options do
   - A preset: `system_prompt: %{type: :preset, preset: :claude_code}`
   - A preset with append: `system_prompt: %{type: :preset, preset: :claude_code, append: "Be concise"}`
 
+  ## Subagents
+
+  Subagents allow you to delegate tasks to specialized agents with their own prompts,
+  tool restrictions, and model configurations. This enables multi-agent workflows where
+  different agents handle different aspects of a task.
+
+  ### Basic Agent Definition
+
+  Each agent is defined with:
+
+  - `description` (required) - What the agent does
+  - `prompt` (required) - System prompt for the agent
+  - `tools` (optional) - List of allowed tools for this agent (nil = all tools)
+  - `model` (optional) - Model override (`:sonnet`, `:opus`, `:haiku`, `:inherit`)
+
+  ### Example: Single Agent
+
+      ClaudeAgent.query("Review this code",
+        agents: %{
+          "code-reviewer" => %{
+            description: "Code review specialist",
+            prompt: "You are an expert code reviewer. Focus on correctness, performance, and security.",
+            tools: ["Read", "Grep", "Glob"],
+            model: :sonnet
+          }
+        }
+      )
+
+  ### Example: Multiple Agents
+
+      ClaudeAgent.query("Analyze and test this module",
+        agents: %{
+          "analyzer" => %{
+            description: "Code analysis specialist",
+            prompt: "Analyze code structure and patterns",
+            tools: ["Read", "Grep"],
+            model: :sonnet
+          },
+          "tester" => %{
+            description: "Test generation specialist",
+            prompt: "Generate comprehensive test cases",
+            tools: ["Read", "Write"],
+            model: :haiku
+          }
+        }
+      )
+
+  ### Agent Delegation
+
+  When you configure agents, Claude can delegate tasks to them by using tool calls.
+  For example, if you have a "code-reviewer" agent configured, Claude might invoke:
+
+      Use tool: Task(subagent_type: "code-reviewer", prompt: "Review auth.ex")
+
+  The subagent executes with its own:
+  - System prompt and instructions
+  - Tool restrictions (only allowed tools)
+  - Model configuration
+  - Permission settings
+
+  ### Agent Hierarchy and Tracking
+
+  Messages from subagents include a `parent_tool_use_id` field that links them to the
+  delegating agent's tool use. This creates a hierarchy:
+
+      Parent Agent
+      └─> Tool: Task(subagent_type: "analyzer")
+          └─> Subagent Messages (parent_tool_use_id set)
+              └─> Results returned to parent
+
+  ### SubagentStop Hook
+
+  You can hook into subagent completion using the `:subagent_stop` hook event:
+
+      ClaudeAgent.query("Analyze this code",
+        agents: %{"analyzer" => %{...}},
+        hooks: %{
+          subagent_stop: [
+            %{
+              callback: fn input, _context ->
+                IO.puts("Subagent completed")
+                %{continue: true}
+              end
+            }
+          ]
+        }
+      )
+
+  ### Model Inheritance
+
+  The `:inherit` model (or `nil`) makes the agent use its parent's model:
+
+      # Analyzer inherits the query's model (e.g., opus)
+      ClaudeAgent.query("Analyze this",
+        model: "opus",
+        agents: %{
+          "analyzer" => %{
+            description: "Analyzer",
+            prompt: "Analyze code",
+            model: :inherit  # or nil
+          }
+        }
+      )
+
+  ### Tool Restrictions
+
+  Agents can be restricted to specific tools for safety and cost control:
+
+      %{
+        "research" => %{
+          description: "Research specialist",
+          prompt: "Find and analyze information",
+          tools: ["Read", "Grep", "WebSearch"],  # Only these tools
+          model: :haiku
+        }
+      }
+
+  If `tools` is `nil`, the agent has access to all available tools.
+
   ## MCP Servers
 
   Configure MCP servers as a map of name to config:
@@ -126,6 +245,64 @@ defmodule ClaudeAgent.Options do
           optional(:enable_weaker_nested_sandbox) => boolean()
         }
 
+  @typedoc """
+  Configuration for a custom subagent.
+
+  Subagents allow delegating specialized tasks to agents with custom prompts, tool
+  restrictions, and model configurations. This enables multi-agent workflows.
+
+  ## Fields
+
+  - `description` (required) - Brief description of what the agent does. This helps
+    Claude understand when to delegate to this agent.
+
+  - `prompt` (required) - System prompt that defines the agent's behavior, personality,
+    and instructions. This is sent to the model when the agent is invoked.
+
+  - `tools` (optional) - List of tool names this agent is allowed to use. When `nil`,
+    the agent has access to all available tools. Use this to restrict agents to specific
+    capabilities for safety or cost control.
+    Examples: `["Read", "Grep"]`, `["WebSearch", "WebFetch"]`, `nil`
+
+  - `model` (optional) - Model override for this agent. Can be:
+    - `:sonnet` - Use Claude Sonnet (balanced performance)
+    - `:opus` - Use Claude Opus (highest capability)
+    - `:haiku` - Use Claude Haiku (fastest, most economical)
+    - `:inherit` or `nil` - Inherit model from parent agent/query
+
+  ## Example
+
+      %{
+        description: "Code review specialist",
+        prompt: "You are an expert code reviewer. Focus on security and performance.",
+        tools: ["Read", "Grep", "Glob"],
+        model: :sonnet
+      }
+
+  ## Usage
+
+  Agents are configured in the `:agents` option as a map of name to agent definition:
+
+      ClaudeAgent.query("Review auth module",
+        agents: %{
+          "code-reviewer" => %{
+            description: "Security-focused code reviewer",
+            prompt: "Review code for security vulnerabilities",
+            tools: ["Read", "Grep"],
+            model: :sonnet
+          }
+        }
+      )
+
+  Claude will delegate to the agent when appropriate via tool calls:
+
+      Task(subagent_type: "code-reviewer", prompt: "Review auth.ex")
+
+  ## See Also
+
+  - Module documentation for complete subagent examples and patterns
+  - `ClaudeAgent.Hooks.HookMatcher` for `:subagent_stop` hook documentation
+  """
   @type agent_definition :: %{
           description: String.t(),
           prompt: String.t(),

@@ -293,6 +293,221 @@ Content blocks within `AssistantMessage`:
 | `ToolUseBlock`    | Tool invocation details           |
 | `ToolResultBlock` | Result from tool execution        |
 
+## Simple Subagents Example
+
+Subagents allow you to delegate tasks to specialized agents with custom prompts and tool restrictions. This simple example shows the easiest way to use subagents with `query_text`:
+
+```elixir
+# Define a code reviewer agent
+agents = %{
+  "code-reviewer" => %{
+    description: "Code review specialist",
+    prompt: """
+    You are an expert code reviewer. When reviewing code:
+    1. Focus on correctness and potential bugs
+    2. Check for security issues
+    3. Suggest improvements
+    Keep your review concise and actionable.
+    """,
+    tools: ["Read", "Grep"],
+    model: :sonnet
+  }
+}
+
+# Use query_text for a simple response
+result =
+  ClaudeAgent.query_text(
+    "Use the code-reviewer agent to review lib/claude_agent/options.ex",
+    agents: agents,
+    permission_mode: :bypass_permissions,
+    cwd: File.cwd!()
+  )
+
+IO.puts(result)
+```
+
+This is the simplest way to use subagents - just pass the `agents` option to any query function!
+
+## Streaming Subagents Example
+
+For more control and visibility into the subagent workflow, use streaming. This example shows **streaming responses** with clear indicators when subagents are invoked.
+
+```elixir
+alias ClaudeAgent.Types.Messages.{AssistantMessage, SystemMessage}
+alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
+
+# Define a code reviewer agent
+agents = %{
+  "code-reviewer" => %{
+    description: "Code review specialist",
+    prompt: """
+    You are an expert code reviewer. When reviewing code:
+    1. Focus on correctness and potential bugs
+    2. Check for security issues
+    3. Suggest improvements
+    Keep your review concise and actionable.
+    """,
+    tools: ["Read", "Grep"],
+    model: :sonnet
+  }
+}
+
+# Start a query with the agent configured
+{:ok, client} = Client.start_link(
+  agents: agents,
+  permission_mode: :bypass_permissions,
+  cwd: File.cwd!()
+)
+
+:ok = Client.query(client, "Use the code-reviewer agent to review lib/claude_agent/options.ex")
+
+# Stream messages with visual indicators for subagent calls
+# Track which agent corresponds to which tool_use_id
+agent_names = %{}
+
+client
+|> Client.receive_response()
+|> Enum.reduce(agent_names, fn
+  %SystemMessage{subtype: "init", data: %{"agents" => agent_list}}, acc ->
+    IO.puts("✅ Available agents: #{inspect(agent_list)}\n")
+    acc
+
+  %AssistantMessage{content: blocks, parent_tool_use_id: parent_id}, acc ->
+    # Check if this is from a subagent (has parent_tool_use_id)
+    if parent_id do
+      agent_name = Map.get(acc, parent_id, "unknown")
+      IO.puts("🔸 [#{String.upcase(agent_name)} AGENT RESPONSE]")
+    end
+
+    # Update agent tracking and display blocks
+    new_acc =
+      Enum.reduce(blocks, acc, fn
+        %TextBlock{text: text}, acc ->
+          IO.puts("💬 #{text}\n")
+          acc
+
+        %ToolUseBlock{name: "Task", input: %{"subagent_type" => agent_name}, id: tool_id}, acc ->
+          IO.puts("🚀 INVOKING SUBAGENT: #{agent_name}")
+          IO.puts("   └─ Task tool called to delegate work\n")
+          # Store the mapping of tool_use_id -> agent_name
+          Map.put(acc, tool_id, agent_name)
+
+        %ToolUseBlock{name: name, input: input}, acc ->
+          IO.puts("🔧 Tool: #{name}")
+          IO.puts("   └─ #{inspect(input, limit: :infinity, pretty: true)}\n")
+          acc
+
+        %ToolResultBlock{tool_use_id: _id, content: content, is_error: true}, acc ->
+          preview = if is_binary(content), do: String.slice(content, 0, 200), else: inspect(content)
+          IO.puts("❌ Error: #{preview}\n")
+          acc
+
+        %ToolResultBlock{tool_use_id: _id, content: content}, acc ->
+          preview = if is_binary(content), do: String.slice(content, 0, 150), else: inspect(content)
+          IO.puts("📋 Result: #{preview}...\n")
+          acc
+
+        _other, acc ->
+          acc
+      end)
+
+    new_acc
+
+  _other, acc ->
+    acc
+end)
+
+Client.disconnect(client)
+IO.puts("✅ Done!")
+```
+
+### Advanced: Multiple Agents with Detailed Streaming
+
+Watch multiple subagents work in real-time with detailed output and visual indicators:
+
+```elixir
+alias ClaudeAgent.Types.Messages.AssistantMessage
+alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
+
+agents = %{
+  "analyzer" => %{
+    description: "Code structure analyzer",
+    prompt: "Analyze code structure and identify patterns. Be brief.",
+    tools: ["Read", "Grep"],
+    model: :haiku
+  },
+  "security-checker" => %{
+    description: "Security vulnerability checker",
+    prompt: "Check for security issues and vulnerabilities. Be concise.",
+    tools: ["Read", "Grep"],
+    model: :haiku
+  }
+}
+
+{:ok, client} = Client.start_link(
+  agents: agents,
+  permission_mode: :bypass_permissions,
+  cwd: File.cwd!()
+)
+
+:ok = Client.query(client, "First use analyzer to check lib/claude_agent.ex structure, then use security-checker to review for issues")
+
+# Stream with detailed subagent tracking
+# Track agent names by tool_use_id
+agent_names = %{}
+
+client
+|> Client.receive_response()
+|> Enum.reduce(agent_names, fn
+  %AssistantMessage{content: blocks, parent_tool_use_id: parent_id}, acc ->
+    # Highlight subagent responses with agent name
+    if parent_id do
+      agent_name = Map.get(acc, parent_id, "unknown")
+      IO.puts("\n┌─── 🔸 #{String.upcase(agent_name)} AGENT OUTPUT ───")
+    end
+
+    # Process blocks and track agent invocations
+    new_acc =
+      Enum.reduce(blocks, acc, fn
+        %TextBlock{text: text}, acc ->
+          IO.puts("💬 #{text}")
+          acc
+
+        %ToolUseBlock{name: "Task", input: %{"subagent_type" => agent_name, "prompt" => prompt}, id: tool_id}, acc ->
+          IO.puts("\n🚀 DELEGATING TO SUBAGENT")
+          IO.puts("   Agent: #{agent_name}")
+          IO.puts("   Task: #{String.slice(prompt, 0, 100)}...")
+          IO.puts("")
+          # Store agent name for this tool_use_id
+          Map.put(acc, tool_id, agent_name)
+
+        %ToolUseBlock{name: name, input: input}, acc ->
+          IO.puts("🔧 #{name}: #{inspect(input)}")
+          acc
+
+        %ToolResultBlock{content: content}, acc when is_binary(content) ->
+          preview = String.slice(content, 0, 100)
+          IO.puts("   ✓ #{preview}...")
+          acc
+
+        _, acc ->
+          acc
+      end)
+
+    if parent_id do
+      IO.puts("└─────────────────────────\n")
+    end
+
+    new_acc
+
+  _, acc ->
+    acc
+end)
+
+Client.disconnect(client)
+IO.puts("\n✅ Complete!")
+```
+
 ## Cleanup
 
 Make sure to clean up any resources:

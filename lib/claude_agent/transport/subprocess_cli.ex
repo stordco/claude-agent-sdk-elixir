@@ -11,6 +11,46 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   - JSON message buffering and parsing
   - Stderr handling with optional callback
   - Configurable buffer size limits
+  - Subagent configuration serialization
+
+  ## Subagent Support
+
+  This transport handles serialization and passing of subagent configurations to the CLI.
+
+  ### Agent Serialization
+
+  Agent definitions are serialized to JSON and passed via the `--agents` CLI flag.
+  Nil values in agent definitions are filtered out before serialization to reduce
+  payload size and ensure clean JSON output.
+
+  For example, an agent definition like:
+
+      %{
+        "code-reviewer" => %{
+          description: "Code review specialist",
+          prompt: "Review code for issues",
+          tools: ["Read", "Grep"],
+          model: nil  # Will be filtered out
+        }
+      }
+
+  Is serialized as:
+
+      --agents '{"code-reviewer":{"description":"Code review specialist","prompt":"Review code for issues","tools":["Read","Grep"]}}'
+
+  ### Command Line Length Optimization
+
+  If the command line exceeds platform limits (8000 chars on Windows, 100000 on others),
+  the agent JSON is written to a temporary file and referenced via `@filepath`:
+
+      --agents @/tmp/agents_abc123.json
+
+  This is transparent to the caller and automatically cleaned up on transport close.
+
+  ### Model Value Conversion
+
+  Elixir atoms for model values (`:sonnet`, `:opus`, `:haiku`, `:inherit`) are
+  automatically converted to strings during JSON encoding.
   """
 
   @behaviour ClaudeAgent.Transport
@@ -321,6 +361,27 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
     :ok
   end
 
+  @doc """
+  Build command arguments for testing purposes.
+
+  This function exposes the command building logic for testing without
+  actually spawning a subprocess. Returns the list of CLI arguments that
+  would be passed to the Claude Code CLI.
+
+  ## Example
+
+      iex> transport = SubprocessCli.new("test", agents: %{"test" => %{...}})
+      iex> cmd = SubprocessCli.build_command_for_testing(transport)
+      iex> "--agents" in cmd
+      true
+
+  """
+  @spec build_command_for_testing(t()) :: [String.t()]
+  def build_command_for_testing(%__MODULE__{} = transport) do
+    {args, _temp_files} = build_command(transport)
+    args
+  end
+
   # Private helpers
 
   defp find_cli do
@@ -576,7 +637,20 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
         args
 
       agents when is_map(agents) ->
-        agents_json = Jason.encode!(agents)
+        # Filter out nil values from agent definitions to keep JSON payload clean
+        cleaned_agents =
+          agents
+          |> Enum.map(fn {name, agent_def} ->
+            cleaned_def =
+              agent_def
+              |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+              |> Enum.into(%{})
+
+            {name, cleaned_def}
+          end)
+          |> Enum.into(%{})
+
+        agents_json = Jason.encode!(cleaned_agents)
         args ++ ["--agents", agents_json]
     end
   end
