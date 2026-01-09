@@ -46,7 +46,7 @@ defmodule ClaudeAgent.MixProject do
     [
       main: "ClaudeAgent",
       source_ref: "v#{@version}",
-      extras: ["README.md"],
+      extras: ["README.md", "demo.livemd"],
       groups_for_modules: [
         "Main API": [
           ClaudeAgent,
