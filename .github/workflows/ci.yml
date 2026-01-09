@@ -8,7 +8,6 @@ on:
 
 env:
   MIX_ENV: test
-  CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK: "1"
 
 jobs:
   test:

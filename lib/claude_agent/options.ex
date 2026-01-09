@@ -168,6 +168,8 @@ defmodule ClaudeAgent.Options do
           | {:max_thinking_tokens, pos_integer() | nil}
           | {:output_format, map() | nil}
           | {:enable_file_checkpointing, boolean()}
+          | {:skip_version_check, boolean()}
+          | {:stream_close_timeout, pos_integer() | nil}
         ]
 
   @defaults [
@@ -204,7 +206,9 @@ defmodule ClaudeAgent.Options do
     plugins: [],
     max_thinking_tokens: nil,
     output_format: nil,
-    enable_file_checkpointing: false
+    enable_file_checkpointing: false,
+    skip_version_check: false,
+    stream_close_timeout: nil
   ]
 
   @doc """

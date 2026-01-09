@@ -85,7 +85,7 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
 
   @impl true
   def connect(%__MODULE__{} = transport) do
-    unless System.get_env("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK") do
+    unless Options.get(transport.options, :skip_version_check, false) do
       check_cli_version(transport.cli_path)
     end
 
@@ -166,6 +166,8 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   end
 
   defp receive_next({%__MODULE__{port: port, max_buffer_size: max_size} = transport, buffer}) do
+    timeout = Options.get(transport.options, :stream_close_timeout, @default_read_timeout)
+
     receive do
       {^port, {:data, data}} ->
         new_buffer = buffer <> IO.iodata_to_binary(data)
@@ -195,22 +197,9 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
         Logger.debug("Port exited: #{inspect(reason)}")
         {:halt, {transport, buffer}}
     after
-      # Timeout configurable via env var (default 5 minutes)
-      get_read_timeout() ->
+      # Timeout configurable via option (default 5 minutes)
+      timeout ->
         {:halt, {transport, buffer}}
-    end
-  end
-
-  defp get_read_timeout do
-    case System.get_env("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT") do
-      nil ->
-        @default_read_timeout
-
-      value ->
-        case Integer.parse(value) do
-          {timeout, ""} when timeout > 0 -> timeout
-          _ -> @default_read_timeout
-        end
     end
   end
 

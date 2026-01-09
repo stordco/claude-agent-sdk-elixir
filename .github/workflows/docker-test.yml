@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK: "1"
+  MIX_ENV: test
 
 jobs:
   docker-test:

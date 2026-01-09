@@ -73,7 +73,7 @@ defmodule DockerTest do
             test_query
           ])
 
-        port_args = ["-q", "-c", full_cmd, "/dev/null"]
+        port_args = ["-q", "-e", "-c", full_cmd, "/dev/null"]
 
         port =
           Port.open({:spawn_executable, script_path}, [
@@ -129,15 +129,9 @@ defmodule DockerTest do
   end
 
   defp shell_escape_arg(arg) do
-    escaped =
-      arg
-      |> String.replace("\\", "\\\\")
-      |> String.replace("\"", "\\\"")
-      |> String.replace("$", "\\$")
-      |> String.replace("`", "\\`")
-      |> String.replace("\n", "\\n")
-
-    "\"#{escaped}\""
+    # Use single-quote escaping to match the SDK implementation
+    escaped = String.replace(arg, "'", "'\\''")
+    "'#{escaped}'"
   end
 
   defp collect_output(port, acc) do

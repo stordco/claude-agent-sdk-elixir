@@ -136,6 +136,8 @@ ClaudeAgent.query_text("Hello!", system_prompt: "Be concise", max_turns: 3)
 | `max_budget_usd` | Maximum cost limit |
 | `model` | Model to use (e.g., "claude-sonnet-4-5") |
 | `cwd` | Working directory |
+| `skip_version_check` | Skip CLI version check (default: `false`) |
+| `stream_close_timeout` | Timeout in ms for stream close (default: 300000) |
 
 See `ClaudeAgent.Options` for full documentation.
 
