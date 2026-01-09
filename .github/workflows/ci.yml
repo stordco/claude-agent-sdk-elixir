@@ -19,10 +19,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Latest stable versions
-          - elixir: '1.16'
+          # Latest stable version
+          - elixir: '1.18'
             otp: '26'
             dialyzer: true
+          # Recent stable versions
+          - elixir: '1.17'
+            otp: '26'
+          - elixir: '1.16'
+            otp: '26'
           # Minimum supported version
           - elixir: '1.15'
             otp: '25'
@@ -88,7 +93,7 @@ jobs:
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: '1.16'
+          elixir-version: '1.18'
           otp-version: '26'
 
       - name: Cache dependencies
