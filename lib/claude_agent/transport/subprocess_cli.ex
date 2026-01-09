@@ -166,7 +166,7 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   end
 
   defp receive_next({%__MODULE__{port: port, max_buffer_size: max_size} = transport, buffer}) do
-    timeout = Options.get(transport.options, :stream_close_timeout, @default_read_timeout)
+    timeout = Options.get(transport.options, :stream_close_timeout) || @default_read_timeout
 
     receive do
       {^port, {:data, data}} ->
