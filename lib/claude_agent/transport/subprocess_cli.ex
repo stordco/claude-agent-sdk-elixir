@@ -781,13 +781,14 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
         end
 
       {:unix, _} ->
-        # Linux: script -q -c "<full command>" /dev/null
+        # Linux: script -q -e -c "command" /dev/null
+        # Note: -e flag returns exit code of child command
         script_path = find_script_command()
 
         if script_path do
           # Build the full command string for -c option with proper escaping
           full_cmd = shell_escape_command([cli_path | args])
-          {script_path, ["-q", "-c", full_cmd, "/dev/null"]}
+          {script_path, ["-q", "-e", "-c", full_cmd, "/dev/null"]}
         else
           Logger.warning("'script' command not found - CLI may not work properly without TTY")
           {cli_path, args}
@@ -806,23 +807,26 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   @doc """
   Escapes a list of command arguments for safe execution in a shell.
 
-  This function wraps each argument in double quotes and escapes special
-  characters to prevent shell interpretation issues when passing commands
+  This function wraps each argument in single quotes and escapes embedded
+  single quotes to prevent shell interpretation issues when passing commands
   to `script -c` on Linux systems.
 
   ## Escaping Rules
 
-  - All arguments are wrapped in double quotes
-  - Escaped characters: `\\`, `"`, `$`, `` ` ``, newlines
-  - Single quotes (`'`) are preserved as-is (no escaping needed inside double quotes)
+  - All arguments are wrapped in single quotes
+  - Single quotes within arguments are escaped using the '\'' pattern:
+    * End the current single-quoted string with '
+    * Add an escaped single quote \\'
+    * Start a new single-quoted string with '
+  - This prevents shell injection while preserving all other special characters literally
 
   ## Examples
 
       iex> SubprocessCli.shell_escape_command(["/bin/claude", "--prompt", "What's up?"])
-      ~s("/bin/claude" "--prompt" "What's up?")
+      "'/bin/claude' '--prompt' 'What'\\\\''s up?'"
 
       iex> SubprocessCli.shell_escape_command(["/bin/claude", "--json", "{\\"key\\": \\"value\\"}"])
-      ~s("/bin/claude" "--json" "{\\\\"key\\\\": \\\\"value\\\\"}")
+      "'/bin/claude' '--json' '{\\"key\\": \\"value\\"}'"
 
   """
   def shell_escape_command(args) when is_list(args) do
@@ -831,18 +835,26 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
     |> Enum.join(" ")
   end
 
-  # Escape a single argument for shell execution
-  # Uses double quotes and escapes: ", \, $, `, and newline
+  # Safely quotes a shell argument for use in a script -c command (Linux).
+  #
+  # This function prevents shell injection attacks by:
+  # 1. Escaping any single quotes in the input using the '\'' pattern
+  # 2. Wrapping the result in single quotes
+  #
+  # The '\'' pattern works because:
+  # - The first ' ends the current single-quoted string
+  # - \' is a literal single quote (outside of single quotes)
+  # - The last ' starts a new single-quoted string
+  #
+  # Example:
+  #   shell_escape_arg("test'; rm -rf /")
+  #   => "'test'\'; rm -rf /'"
+  #
+  # When the shell processes this, it treats everything as a literal string,
+  # not as commands to execute.
   defp shell_escape_arg(arg) do
-    escaped =
-      arg
-      |> String.replace("\\", "\\\\")
-      |> String.replace("\"", "\\\"")
-      |> String.replace("$", "\\$")
-      |> String.replace("`", "\\`")
-      |> String.replace("\n", "\\n")
-
-    "\"#{escaped}\""
+    escaped = String.replace(arg, "'", "'\\''")
+    "'#{escaped}'"
   end
 
   defp build_port_options(%__MODULE__{} = transport, _executable, args) do

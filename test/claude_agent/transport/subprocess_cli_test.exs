@@ -17,9 +17,9 @@ defmodule ClaudeAgent.Transport.SubprocessCliTest do
         "What is 2+2?"
       ]
 
-      # Expected: each argument should be properly quoted
+      # Expected: each argument should be properly quoted with single quotes
       expected =
-        ~s("/usr/bin/claude" "--output-format" "stream-json" "--verbose" "--system-prompt" "" "--print" "--" "What is 2+2?")
+        "'/usr/bin/claude' '--output-format' 'stream-json' '--verbose' '--system-prompt' '' '--print' '--' 'What is 2+2?'"
 
       result = SubprocessCli.shell_escape_command(test_args)
       assert result == expected
@@ -34,9 +34,9 @@ defmodule ClaudeAgent.Transport.SubprocessCliTest do
 
       result = SubprocessCli.shell_escape_command(test_args)
 
-      # The JSON argument should be properly escaped with backslashes before quotes
+      # The JSON argument should be properly escaped with single quotes (no escaping needed for double quotes inside)
       expected =
-        ~s("/usr/bin/claude" "--json" "{\\"key\\": \\"value with spaces\\", \\"nested\\": {\\"foo\\": \\"bar\\"}}")
+        ~s('/usr/bin/claude' '--json' '{"key": "value with spaces", "nested": {"foo": "bar"}}')
 
       assert result == expected
     end
@@ -50,8 +50,8 @@ defmodule ClaudeAgent.Transport.SubprocessCliTest do
 
       result = SubprocessCli.shell_escape_command(test_args)
 
-      # Should escape the single quote properly
-      assert result == ~s("/usr/bin/claude" "--prompt" "What's the answer?")
+      # Should escape the single quote using the '\'' pattern
+      assert result == "'/usr/bin/claude' '--prompt' 'What'\\''s the answer?'"
     end
 
     test "handles empty arguments" do
@@ -62,7 +62,7 @@ defmodule ClaudeAgent.Transport.SubprocessCliTest do
       ]
 
       result = SubprocessCli.shell_escape_command(test_args)
-      assert result == ~s("/usr/bin/claude" "--system-prompt" "")
+      assert result == "'/usr/bin/claude' '--system-prompt' ''"
     end
 
     test "handles arguments with backslashes" do
@@ -73,7 +73,8 @@ defmodule ClaudeAgent.Transport.SubprocessCliTest do
       ]
 
       result = SubprocessCli.shell_escape_command(test_args)
-      assert String.contains?(result, "C:\\\\Users\\\\Test\\\\file.txt")
+      # Backslashes are preserved as-is within single quotes
+      assert result == "'/usr/bin/claude' '--path' 'C:\\Users\\Test\\file.txt'"
     end
   end
 end
