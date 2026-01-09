@@ -385,11 +385,11 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
   # Private helpers
 
   defp find_cli do
-    cond do
-      bundled = find_bundled_cli() -> bundled
-      system = System.find_executable("claude") -> system
-      true -> find_in_common_locations()
-    end
+    # Check application env first (for testing/config)
+    Application.get_env(:claude_agent_sdk, :cli_path) ||
+      find_bundled_cli() ||
+      System.find_executable("claude") ||
+      find_in_common_locations()
   end
 
   defp find_bundled_cli do
