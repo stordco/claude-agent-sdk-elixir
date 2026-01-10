@@ -19,6 +19,77 @@ defmodule ClaudeAgent.Options do
         permission_mode: :accept_edits
       )
 
+  ## Structured Outputs
+
+  Get validated JSON responses using JSON Schemas. Claude ensures its response
+  matches your schema exactly, retrying if necessary.
+
+  ### Basic Example
+
+      schema = %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{"type" => "string"},
+          "age" => %{"type" => "integer"}
+        },
+        "required" => ["name", "age"]
+      }
+
+      result = ClaudeAgent.query_result("Extract person info",
+        output_format: %{"type" => "json_schema", "schema" => schema}
+      )
+
+      # Access validated output
+      person_name = result.structured_output["name"]
+
+  ### With Ecto Schemas (Recommended)
+
+  For production use, define schemas with Ecto for type safety and validation:
+
+      defmodule Person do
+        use Ecto.Schema
+        import Ecto.Changeset
+
+        @primary_key false
+        embedded_schema do
+          field(:name, :string)
+          field(:age, :integer)
+        end
+
+        def changeset(attrs) do
+          %__MODULE__{}
+          |> cast(attrs, [:name, :age])
+          |> validate_required([:name, :age])
+          |> validate_number(:age, greater_than: 0)
+        end
+      end
+
+      # Query with schema
+      result = ClaudeAgent.query_result("Extract person info",
+        output_format: %{"type" => "json_schema", "schema" => person_schema}
+      )
+
+      # Validate and cast
+      case Person.changeset(result.structured_output) do
+        %{valid?: true} = changeset ->
+          person = Ecto.Changeset.apply_changes(changeset)
+          # Now you have a typed %Person{} struct!
+
+        %{valid?: false} = changeset ->
+          {:error, changeset.errors}
+      end
+
+  ### Automatic Schema Generation
+
+  Use [Ostara](https://github.com/gridpoint-com/ostara) to generate JSON Schemas
+  from Ecto schemas automatically:
+
+      # In mix.exs
+      {:ostara, "~> 0.4.0"}
+
+      # Generate schema
+      schema = Ostara.transmute(Person)
+
   ## Permission Modes
 
   - `:default` - CLI prompts for dangerous tools

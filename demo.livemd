@@ -48,6 +48,201 @@ The easiest way to get a response from Claude:
 ClaudeAgent.query_text("What is the capital of France?")
 ```
 
+## Structured Outputs
+
+Get validated JSON responses using JSON Schemas. Claude will ensure its response matches your schema exactly:
+
+```elixir
+# Define a JSON Schema for a simple math problem
+schema = %{
+  "type" => "object",
+  "properties" => %{
+    "answer" => %{"type" => "number"},
+    "explanation" => %{"type" => "string"}
+  },
+  "required" => ["answer", "explanation"]
+}
+
+# Query with structured output
+result = ClaudeAgent.query_result(
+  "What is 17 + 25? Provide the answer and a brief explanation.",
+  output_format: %{"type" => "json_schema", "schema" => schema},
+  permission_mode: :bypass_permissions,
+  max_turns: 3
+)
+
+# Access the validated structured output
+IO.puts("Math Problem Result:")
+IO.inspect(result.structured_output, pretty: true)
+IO.puts("\nAnswer: #{result.structured_output["answer"]}")
+IO.puts("Explanation: #{result.structured_output["explanation"]}")
+```
+
+**Key benefits:**
+
+* **Validated**: Output always matches your schema
+* **Type-safe**: Perfect for integration with databases, APIs, or business logic
+* **Tool autonomy**: Claude chooses which tools to use while guaranteeing output format
+
+### Type-Safe Schemas with Ecto + Ostara (Recommended)
+
+For production use, define schemas using Ecto embedded schemas. In a real app, use [Ostara](https://github.com/gridpoint-com/ostara) to auto-generate JSON Schemas:
+
+```elixir
+defmodule CompanyInfo do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  @primary_key false
+  embedded_schema do
+    field(:company_name, :string)
+    field(:founded_year, :integer)
+    field(:headquarters, :string)
+    field(:employee_count, :integer)
+  end
+
+  def changeset(attrs) do
+    %__MODULE__{}
+    |> cast(attrs, [:company_name, :founded_year, :headquarters, :employee_count])
+    |> validate_required([:company_name, :founded_year])
+    |> validate_number(:founded_year, greater_than: 1800)
+  end
+
+  # Helper for this demo - in production, you can use: Ostara.transmute(CompanyInfo)
+  def json_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "company_name" => %{"type" => "string"},
+        "founded_year" => %{"type" => "integer"},
+        "headquarters" => %{"type" => "string"},
+        "employee_count" => %{"type" => "integer"}
+      },
+      "required" => ["company_name", "founded_year"]
+    }
+  end
+end
+
+result = ClaudeAgent.query_result(
+  "Research Anthropic (the AI company) and provide: company name, founded year, headquarters location, and approximate employee count.",
+  output_format: %{"type" => "json_schema", "schema" => CompanyInfo.json_schema()},
+  permission_mode: :bypass_permissions,
+  max_turns: 5
+)
+
+# Validate and cast using Ecto
+case CompanyInfo.changeset(result.structured_output) do
+  %{valid?: true} = changeset ->
+    company = Ecto.Changeset.apply_changes(changeset)
+    IO.puts("\n✅ Valid Company Info (typed struct):")
+    IO.inspect(company, structs: false)
+    IO.puts("\nCompany: #{company.company_name}")
+    IO.puts("Founded: #{company.founded_year}")
+    IO.puts("HQ: #{company.headquarters}")
+
+  %{valid?: false} = changeset ->
+    IO.puts("\n❌ Validation errors:")
+    IO.inspect(changeset.errors)
+end
+```
+
+**Why use Ecto schemas?**
+
+* **Type safety**: Get compile-time checks and IDE autocomplete
+* **Validation**: Built-in changeset validation on top of JSON Schema
+* **Reusability**: Same schema for DB, APIs, and Claude responses
+* **Tooling**: Works with [Ostara](https://github.com/gridpoint-com/ostara) to auto-generate JSON Schemas
+
+> **Comparison with other ecosystems:**
+> 
+> * **Python**: Use [Pydantic](https://docs.pydantic.dev/) models with `.model_json_schema()`
+> * **TypeScript**: Use [Zod](https://zod.dev/) schemas with `zodToJsonSchema()`
+> * **Elixir**: Use Ecto embedded schemas with [Ostara](https://github.com/gridpoint-com/ostara) for JSON Schema generation
+
+### Text Analysis with Enum Constraints
+
+Use enums to constrain possible values:
+
+```elixir
+sentiment_schema = %{
+  "type" => "object",
+  "properties" => %{
+    "sentiment" => %{
+      "type" => "string",
+      "enum" => ["positive", "negative", "neutral"]
+    },
+    "confidence" => %{"type" => "number"},
+    "key_words" => %{
+      "type" => "array",
+      "items" => %{"type" => "string"}
+    }
+  },
+  "required" => ["sentiment", "confidence", "key_words"]
+}
+
+result = ClaudeAgent.query_result(
+  ~s(Analyze the sentiment of this text: "I love learning Elixir! The pattern matching is amazing."),
+  output_format: %{"type" => "json_schema", "schema" => sentiment_schema},
+  permission_mode: :bypass_permissions,
+  max_turns: 3
+)
+
+IO.puts("\n😊 Sentiment Analysis:")
+IO.puts("Sentiment: #{result.structured_output["sentiment"]}")
+IO.puts("Confidence: #{result.structured_output["confidence"]}")
+IO.puts("Key words: #{Enum.join(result.structured_output["key_words"], ", ")}")
+```
+
+### Nested Structured Output with Arrays
+
+Handle complex nested structures:
+
+```elixir
+# Schema for analyzing a list of items
+items_schema = %{
+  "type" => "object",
+  "properties" => %{
+    "items" => %{
+      "type" => "array",
+      "items" => %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{"type" => "string"},
+          "category" => %{"type" => "string"},
+          "price" => %{"type" => "number"}
+        },
+        "required" => ["name", "category", "price"]
+      }
+    },
+    "total_items" => %{"type" => "number"},
+    "total_value" => %{"type" => "number"}
+  },
+  "required" => ["items", "total_items", "total_value"]
+}
+
+result = ClaudeAgent.query_result(
+  """
+  Create a shopping list with these items:
+  - Laptop (electronics, $1200)
+  - Coffee beans (groceries, $15)
+  - Notebook (office supplies, $5)
+  """,
+  output_format: %{"type" => "json_schema", "schema" => items_schema},
+  permission_mode: :bypass_permissions,
+  max_turns: 3
+)
+
+IO.puts("\n🛒 Shopping List:")
+IO.puts("Total items: #{result.structured_output["total_items"]}")
+IO.puts("Total value: $#{result.structured_output["total_value"]}")
+IO.puts("\nItems:")
+
+result.structured_output["items"]
+|> Enum.each(fn item ->
+  IO.puts("  • #{item["name"]} (#{item["category"]}) - $#{item["price"]}")
+end)
+```
+
 ## Get Full Result with Metadata
 
 Get detailed information about the response including cost and duration:

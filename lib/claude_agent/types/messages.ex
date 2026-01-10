@@ -133,6 +133,46 @@ defmodule ClaudeAgent.Types.Messages do
 
     This message indicates the end of a query response and contains
     metadata about the entire interaction.
+
+    ## Fields
+
+    - `subtype` - Result type (e.g., "success", "error_max_turns", "error_max_structured_output_retries")
+    - `duration_ms` - Total execution time in milliseconds
+    - `duration_api_ms` - API call time in milliseconds
+    - `is_error` - Whether the query resulted in an error
+    - `num_turns` - Number of conversation turns
+    - `session_id` - Unique session identifier
+    - `total_cost_usd` - Total cost in USD (may be nil)
+    - `usage` - Token usage details (may be nil)
+    - `result` - Text result of the query (may be nil)
+    - `structured_output` - Validated JSON matching the provided schema (may be nil)
+
+    ## Structured Output
+
+    When using the `output_format` option with a JSON Schema, the `structured_output`
+    field contains the validated output:
+
+        schema = %{
+          "type" => "object",
+          "properties" => %{
+            "name" => %{"type" => "string"},
+            "count" => %{"type" => "integer"}
+          },
+          "required" => ["name", "count"]
+        }
+
+        result = ClaudeAgent.query_result("Extract data",
+          output_format: %{"type" => "json_schema", "schema" => schema}
+        )
+
+        # Access structured output
+        name = result.structured_output["name"]
+        count = result.structured_output["count"]
+
+    The `structured_output` will be `nil` if:
+    - No `output_format` was specified
+    - The query errored before producing output
+    - The maximum retry limit was reached without producing valid output
     """
 
     @type t :: %__MODULE__{

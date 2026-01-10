@@ -44,6 +44,58 @@ defmodule ClaudeAgent do
 
       ClaudeAgent.Client.disconnect(client)
 
+  ## Structured Outputs
+
+  Get validated JSON responses using JSON Schemas:
+
+      schema = %{
+        "type" => "object",
+        "properties" => %{
+          "summary" => %{"type" => "string"},
+          "word_count" => %{"type" => "integer"}
+        },
+        "required" => ["summary", "word_count"]
+      }
+
+      result = ClaudeAgent.query_result("Summarize this text: ...",
+        output_format: %{"type" => "json_schema", "schema" => schema}
+      )
+
+      # Access validated output
+      summary = result.structured_output["summary"]
+      word_count = result.structured_output["word_count"]
+
+  ### With Ecto for Type Safety
+
+      defmodule Summary do
+        use Ecto.Schema
+        import Ecto.Changeset
+
+        @primary_key false
+        embedded_schema do
+          field(:summary, :string)
+          field(:word_count, :integer)
+        end
+
+        def changeset(attrs) do
+          %__MODULE__{}
+          |> cast(attrs, [:summary, :word_count])
+          |> validate_required([:summary, :word_count])
+        end
+      end
+
+      # Validate and get typed struct
+      case Summary.changeset(result.structured_output) do
+        %{valid?: true} = changeset ->
+          summary = Ecto.Changeset.apply_changes(changeset)
+          # summary is now a %Summary{} struct with compile-time guarantees
+
+        %{valid?: false} = changeset ->
+          {:error, changeset.errors}
+      end
+
+  See `ClaudeAgent.Options` for complete documentation and examples.
+
   ## Message Types
 
   The SDK returns these message types:
@@ -51,7 +103,7 @@ defmodule ClaudeAgent do
   - `UserMessage` - User input messages
   - `AssistantMessage` - Claude's responses
   - `SystemMessage` - System events
-  - `ResultMessage` - Final result with cost info
+  - `ResultMessage` - Final result with cost info (includes `structured_output` field)
   - `StreamEvent` - Partial updates (when enabled)
 
   See `ClaudeAgent.Types.Messages` for details.
