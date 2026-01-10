@@ -28,10 +28,11 @@ Application.put_env(:claude_agent_sdk, :max_turns, 10)
 
 **Note:** In an Elixir application, you would configure this in your app's `config/config.exs`:
 
+<!-- livebook:{"force_markdown":true} -->
+
 ```elixir
 import Config
 
-# In your app's config/config.exs
 config :claude_agent_sdk,
   cli_path: "/path/to/claude",
   permission_mode: :bypass_permissions,
@@ -510,6 +511,110 @@ end)
 
 Client.disconnect(client)
 IO.puts("\n✅ Complete!")
+```
+
+## SDK MCP Tools (Custom In-Process Tools)
+
+SDK MCP Tools let you create custom tools that run directly in your Elixir application. Unlike external MCP servers, these run in-process with zero IPC overhead.
+
+**IMPORTANT**: SDK MCP tools require `Client` (not `query_text` or `query`) because they use the control protocol for bidirectional communication between the SDK and CLI.
+
+### Weather API Example
+
+Create a mock weather tool and see tool execution in real-time:
+
+```elixir
+alias ClaudeAgent.Mcp.Tool
+alias ClaudeAgent.Client
+
+# Define a mock weather tool
+weather_tool = Tool.from_spec("get_weather", "Get current weather for a city",
+  %{city: :string, country_code: :string},
+  fn args ->
+    city = args["city"]
+    country = args["country_code"]
+    temp = :rand.uniform(30) + 50
+    conditions = Enum.random(["sunny", "cloudy", "rainy", "partly cloudy"])
+    {:ok, "Weather in #{city}, #{country}: #{temp}°F and #{conditions}"}
+  end,
+  required: [:city, :country_code]
+)
+
+weather_server = ClaudeAgent.create_sdk_mcp_server("weather",
+  tools: [weather_tool]
+)
+
+# Start Client (required for SDK MCP)
+{:ok, client} = Client.start_link(
+  mcp_servers: %{"weather" => %{type: :sdk, instance: weather_server}},
+  allowed_tools: ["mcp__weather__get_weather"],
+  permission_mode: :bypass_permissions,
+  max_turns: 5
+)
+
+# Send query asking for multiple cities
+:ok = Client.query(client, "Compare the weather in Tokyo, Japan and London, United Kingdom")
+
+IO.puts("=" |> String.duplicate(70))
+IO.puts("Streaming Response")
+IO.puts("=" |> String.duplicate(70))
+
+# Process messages as they arrive
+client
+|> Client.receive_response()
+|> Enum.each(fn message ->
+  case message do
+    %{__struct__: ClaudeAgent.Types.Messages.AssistantMessage, content: blocks} ->
+      Enum.each(blocks, fn
+        %{__struct__: ClaudeAgent.Types.ContentBlocks.TextBlock, text: text} ->
+          IO.puts("\n💬 Assistant: #{text}")
+
+        %{__struct__: ClaudeAgent.Types.ContentBlocks.ToolUseBlock, name: name, input: input} ->
+          IO.puts("\n🔧 Using tool: #{name}")
+          IO.puts("   City: #{input["city"]}")
+          IO.puts("   Country: #{input["country_code"]}")
+
+        %{__struct__: ClaudeAgent.Types.ContentBlocks.ToolResultBlock, content: content} ->
+          IO.puts("   ✅ #{content}")
+
+        _ -> :ok
+      end)
+
+    %{__struct__: ClaudeAgent.Types.Messages.ResultMessage} = result ->
+      IO.puts("\n📊 Total Cost: $#{result.total_cost_usd}")
+      IO.puts("=" |> String.duplicate(70))
+
+    _ -> :ok
+  end
+end)
+
+# Clean up
+Client.disconnect(client)
+```
+
+### Key Benefits of SDK MCP Tools
+
+* **Performance**: No subprocess overhead - tools run in your app's process
+* **Simple**: No external servers to configure or manage
+* **Debuggable**: Use standard Elixir debugging tools
+* **Stateful**: Tools can access your application's state via closures
+
+### Tool Return Formats
+
+Tools can return simple strings or structured content:
+
+```elixir
+# Simple string response
+{:ok, "The answer is 42"}
+
+# Multiple content blocks
+{:ok, [
+  %{"type" => "text", "text" => "Here's the chart:"},
+  %{"type" => "image", "data" => base64_data, "mimeType" => "image/png"}
+]}
+
+# Error response (e.g., validation failure)
+{:error, "City not found"}
 ```
 
 ## Cleanup

@@ -49,10 +49,21 @@ defmodule ClaudeAgent.Query do
 
     # Check if streaming mode is required but not available for simple query
     if Options.requires_streaming?(options) do
+      has_sdk_mcp = Options.get(options, :mcp_servers)
+        |> case do
+          nil -> false
+          servers when is_map(servers) ->
+            Enum.any?(servers, fn {_name, config} ->
+              is_map(config) && Map.get(config, :type) == :sdk
+            end)
+          _ -> false
+        end
+
       raise ArgumentError, """
-      This query requires streaming mode because it uses:
+      This query requires streaming mode (Client) because it uses:
       #{if Options.get(options, :can_use_tool), do: "- can_use_tool callback\n", else: ""}
       #{if Options.get(options, :hooks), do: "- hooks configuration\n", else: ""}
+      #{if has_sdk_mcp, do: "- SDK MCP servers (need control protocol)\n", else: ""}
       Please use ClaudeAgent.Client for these features.
       """
     end

@@ -608,15 +608,24 @@ defmodule ClaudeAgent.Transport.SubprocessCli do
         args ++ ["--mcp-config", servers]
 
       servers when is_map(servers) ->
-        # Filter out SDK server instances and convert to JSON
+        # Process all servers: for SDK servers, add name field and strip :instance
+        # The CLI needs to know SDK servers exist so it can route tool discovery to them
         servers_for_cli =
           servers
           |> Enum.map(fn {name, config} ->
             case config do
               %{type: :sdk} = sdk_config ->
-                {name, Map.delete(sdk_config, :instance)}
+                # For SDK servers, add the name field and remove the instance field
+                # The CLI validator requires {type: "sdk", name: "..."}
+                sdk_config_for_cli =
+                  sdk_config
+                  |> Map.delete(:instance)
+                  |> Map.put(:name, name)
+
+                {name, sdk_config_for_cli}
 
               config ->
+                # For external servers, pass as-is
                 {name, config}
             end
           end)

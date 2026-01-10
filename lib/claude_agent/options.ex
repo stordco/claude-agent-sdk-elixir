@@ -522,7 +522,20 @@ defmodule ClaudeAgent.Options do
   @spec requires_streaming?(t()) :: boolean()
   def requires_streaming?(opts) when is_list(opts) do
     not is_nil(Keyword.get(opts, :can_use_tool)) or
-      not is_nil(Keyword.get(opts, :hooks))
+      not is_nil(Keyword.get(opts, :hooks)) or
+      has_sdk_mcp_servers?(opts)
+  end
+
+  # Check if options contain SDK MCP servers (which require control protocol)
+  defp has_sdk_mcp_servers?(opts) when is_list(opts) do
+    case Keyword.get(opts, :mcp_servers) do
+      nil -> false
+      servers when is_map(servers) ->
+        Enum.any?(servers, fn {_name, config} ->
+          is_map(config) && Map.get(config, :type) == :sdk
+        end)
+      _ -> false
+    end
   end
 
   @doc """

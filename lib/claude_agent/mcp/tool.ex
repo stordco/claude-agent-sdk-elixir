@@ -2,34 +2,126 @@ defmodule ClaudeAgent.Mcp.Tool do
   @moduledoc """
   Tool definition for SDK MCP servers.
 
-  Tools are functions that Claude can call to perform actions.
-  Each tool has a name, description, input schema, and handler function.
+  Tools are functions that Claude can call to perform actions. SDK MCP tools
+  run directly in your Elixir application process, providing better performance
+  than external MCP servers.
+
+  ## Quick Start
+
+  The easiest way to create a tool is with `from_spec/5`:
+
+      alias ClaudeAgent.Mcp.Tool
+
+      # Simple tool with type inference
+      greet_tool = Tool.from_spec("greet", "Greet a person",
+        %{name: :string},
+        fn args -> {:ok, "Hello, \#{args["name"]}!"} end,
+        required: [:name]
+      )
+
+      # Calculator tool with error handling
+      divide_tool = Tool.from_spec("divide", "Divide two numbers",
+        %{a: :number, b: :number},
+        fn args ->
+          if args["b"] == 0 do
+            {:error, "Cannot divide by zero"}
+          else
+            {:ok, "\#{args["a"] / args["b"]}"}
+          end
+        end,
+        required: [:a, :b]
+      )
 
   ## Creating Tools
 
-      # Simple tool
+  ### Using `from_spec/5` (Recommended)
+
+  Simplifies type definition by automatically converting Elixir types to JSON Schema:
+
+      tool = Tool.from_spec("add", "Add numbers",
+        %{a: :number, b: :number},
+        fn args -> {:ok, args["a"] + args["b"]} end,
+        required: [:a, :b]
+      )
+
+  Supported types: `:string`, `:number`, `:integer`, `:boolean`, `:array`, `:object`
+
+  ### Using `new/4` (Advanced)
+
+  For full control with raw JSON Schema:
+
       tool = Tool.new("greet", "Say hello",
         %{
           "type" => "object",
           "properties" => %{
-            "name" => %{"type" => "string"}
+            "name" => %{"type" => "string", "description" => "Person's name"}
           },
           "required" => ["name"]
         },
         fn args -> {:ok, "Hello, \#{args["name"]}!"} end
       )
 
-      # Tool with structured response
-      tool = Tool.new("add", "Add numbers",
-        %{
-          "type" => "object",
-          "properties" => %{
-            "a" => %{"type" => "number"},
-            "b" => %{"type" => "number"}
-          }
-        },
-        fn %{"a" => a, "b" => b} ->
-          {:ok, [%{"type" => "text", "text" => "\#{a + b}"}]}
+  ## Handler Return Values
+
+  ### Success Responses
+
+      # Simple string
+      {:ok, "The answer is 42"}
+
+      # Structured content (single block)
+      {:ok, [%{"type" => "text", "text" => "Result text"}]}
+
+      # Multiple content blocks
+      {:ok, [
+        %{"type" => "text", "text" => "Here's your chart:"},
+        %{"type" => "image", "data" => base64_data, "mimeType" => "image/png"}
+      ]}
+
+  ### Error Responses
+
+      {:error, "Invalid input: value must be positive"}
+
+  Errors are displayed to Claude, who can respond appropriately.
+
+  ## Real-World Examples
+
+  ### HTTP API Integration
+
+      weather_tool = Tool.from_spec("get_weather", "Get weather for a city",
+        %{city: :string, country_code: :string},
+        fn args ->
+          response = Req.get!("https://api.weather.com/...",
+            params: [city: args["city"], country: args["country_code"]]
+          )
+          {:ok, "Temperature: \#{response.body["temp"]}°F"}
+        end,
+        required: [:city, :country_code]
+      )
+
+  ### Database Query
+
+      user_tool = Tool.from_spec("get_user", "Get user by ID",
+        %{user_id: :integer},
+        fn args ->
+          case MyApp.Repo.get(User, args["user_id"]) do
+            nil -> {:error, "User not found"}
+            user -> {:ok, Jason.encode!(user)}
+          end
+        end,
+        required: [:user_id]
+      )
+
+  ### Stateful Operations
+
+  Tools can access application state via closures:
+
+      counter = Agent.start_link(fn -> 0 end)
+      {:ok, agent} = counter
+
+      increment_tool = Tool.from_spec("increment", "Increment counter", %{},
+        fn _ ->
+          count = Agent.get_and_update(agent, fn n -> {n + 1, n + 1} end)
+          {:ok, "Count: \#{count}"}
         end
       )
 
@@ -46,19 +138,19 @@ defmodule ClaudeAgent.Mcp.Tool do
         "required" => ["param1"]
       }
 
-  ## Handler Return Values
+  ## Best Practices
 
-  Handlers should return:
+  1. **Keep handlers simple** - Complex logic should be in separate modules
+  2. **Handle errors gracefully** - Return `{:error, message}` for expected failures
+  3. **Validate inputs** - Check arguments before processing
+  4. **Return structured content** - Use content blocks for rich responses
+  5. **Test handlers** - Tools are just functions, easy to test
 
-  - `{:ok, content}` - Success with content (string or list of content blocks)
-  - `{:error, message}` - Error with message string
+  ## Performance
 
-  Content blocks:
-
-      [
-        %{"type" => "text", "text" => "Result text"},
-        %{"type" => "image", "data" => base64_data, "mimeType" => "image/png"}
-      ]
+  SDK MCP tools run in your application process with zero IPC overhead.
+  This makes them significantly faster than external MCP servers that
+  require subprocess communication.
   """
 
   @type handler :: (map() -> {:ok, String.t() | [map()]} | {:error, String.t()})

@@ -241,13 +241,113 @@ Once Livebook is running, you can:
 
 This method provides a convenient way to interact with the SDK directly in your local environment, with full access to your filesystem and installed tools like the Claude CLI.
 
-## Advanced Features (Work in Progress)
+## SDK MCP Tools (Custom In-Process Tools)
 
-The following features are implemented but still being refined:
+Create custom tools that run directly in your Elixir application with zero IPC overhead.
+
+### Quick Example
+
+```elixir
+alias ClaudeAgent.Mcp.Tool
+
+# Define a tool
+greet_tool = Tool.from_spec("greet", "Greet a person",
+  %{name: :string},
+  fn args -> {:ok, "Hello, #{args["name"]}!"} end,
+  required: [:name]
+)
+
+# Create server
+server = ClaudeAgent.create_sdk_mcp_server("greeter", tools: [greet_tool])
+
+# Use in query
+ClaudeAgent.query_text("Greet Alice",
+  mcp_servers: %{"greeter" => %{type: :sdk, instance: server}},
+  allowed_tools: ["mcp__greeter__greet"]
+)
+```
+
+### Why SDK MCP Tools?
+
+- **Performance** - No IPC overhead, tools run in your application process
+- **Simple Deployment** - Single process, no external servers to manage
+- **Easy Debugging** - Standard Elixir debugging tools work seamlessly
+- **Direct Access** - Tools can access your application's state and modules via closures
+
+### Calculator Example
+
+```elixir
+# Define calculator tools
+add_tool = Tool.from_spec("add", "Add two numbers",
+  %{a: :number, b: :number},
+  fn args -> {:ok, "#{args["a"] + args["b"]}"} end,
+  required: [:a, :b]
+)
+
+divide_tool = Tool.from_spec("divide", "Divide two numbers",
+  %{a: :number, b: :number},
+  fn args ->
+    if args["b"] == 0 do
+      {:error, "Cannot divide by zero"}
+    else
+      {:ok, "#{args["a"] / args["b"]}"}
+    end
+  end,
+  required: [:a, :b]
+)
+
+# Create server with multiple tools
+calculator = ClaudeAgent.create_sdk_mcp_server("calc",
+  version: "1.0.0",
+  tools: [add_tool, divide_tool]
+)
+
+# Use with Claude
+ClaudeAgent.query_text("Calculate 15 + 27",
+  mcp_servers: %{"calc" => %{type: :sdk, instance: calculator}},
+  allowed_tools: ["mcp__calc__add", "mcp__calc__divide"]
+)
+```
+
+### Advanced Features
+
+**Multiple Content Types:**
+```elixir
+# Tool returning text and images
+{:ok, [
+  %{"type" => "text", "text" => "Here's the chart:"},
+  %{"type" => "image", "data" => base64_data, "mimeType" => "image/png"}
+]}
+```
+
+**Error Handling:**
+```elixir
+# Return errors that Claude can see and respond to
+{:error, "Invalid input: value must be positive"}
+```
+
+**Stateful Tools:**
+```elixir
+# Tools can access application state via closures
+Tool.from_spec("get_user", "Get user info", %{id: :integer},
+  fn args ->
+    # Access your app's modules and state
+    user = MyApp.Users.get_user(args["id"])
+    {:ok, Jason.encode!(user)}
+  end
+)
+```
+
+See [demo.livemd](demo.livemd) for interactive examples!
+
+## Advanced Features
+
+The following features are production-ready:
 
 - **Hooks** - Intercept and modify tool usage
-- **MCP Servers** - In-process MCP servers with custom tools
+- **SDK MCP Tools** - In-process MCP servers with custom tools
 - **Tool Permissions** - Programmatic permission callbacks
+- **Subagents** - Delegate tasks to specialized agents
 
 ## Testing
 
