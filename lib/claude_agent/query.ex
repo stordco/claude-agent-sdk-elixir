@@ -49,14 +49,19 @@ defmodule ClaudeAgent.Query do
 
     # Check if streaming mode is required but not available for simple query
     if Options.requires_streaming?(options) do
-      has_sdk_mcp = Options.get(options, :mcp_servers)
+      has_sdk_mcp =
+        Options.get(options, :mcp_servers)
         |> case do
-          nil -> false
+          nil ->
+            false
+
           servers when is_map(servers) ->
             Enum.any?(servers, fn {_name, config} ->
               is_map(config) && Map.get(config, :type) == :sdk
             end)
-          _ -> false
+
+          _ ->
+            false
         end
 
       raise ArgumentError, """

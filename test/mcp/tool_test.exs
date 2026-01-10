@@ -261,7 +261,8 @@ defmodule ClaudeAgent.Mcp.ToolTest do
           "Optional param",
           %{required_param: :string, optional_param: :string},
           fn args ->
-            {:ok, "Required: #{args["required_param"]}, Optional: #{Map.get(args, "optional_param", "N/A")}"}
+            {:ok,
+             "Required: #{args["required_param"]}, Optional: #{Map.get(args, "optional_param", "N/A")}"}
           end,
           required: [:required_param]
         )

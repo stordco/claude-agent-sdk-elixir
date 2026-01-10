@@ -529,12 +529,16 @@ defmodule ClaudeAgent.Options do
   # Check if options contain SDK MCP servers (which require control protocol)
   defp has_sdk_mcp_servers?(opts) when is_list(opts) do
     case Keyword.get(opts, :mcp_servers) do
-      nil -> false
+      nil ->
+        false
+
       servers when is_map(servers) ->
         Enum.any?(servers, fn {_name, config} ->
           is_map(config) && Map.get(config, :type) == :sdk
         end)
-      _ -> false
+
+      _ ->
+        false
     end
   end
 
