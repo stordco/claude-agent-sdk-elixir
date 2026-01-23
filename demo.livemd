@@ -1,0 +1,823 @@
+# Claude Agent SDK Demo
+
+```elixir
+Mix.install([
+  {:claude_agent_sdk, path: __DIR__}
+])
+```
+
+## Introduction
+
+This LiveBook demonstrates the **Claude Agent SDK for Elixir** - an SDK for interacting with Claude through the Claude Code CLI.
+
+> **Prerequisites**: You need the Claude Code CLI installed:
+> 
+> ```bash
+> npm install -g @anthropic-ai/claude-code
+> ```
+
+## Configuration
+
+Configure defaults at runtime for this notebook session:
+
+```elixir
+# Configure defaults (applies to all queries in this notebook)
+Application.put_env(:claude_agent_sdk, :permission_mode, :bypass_permissions)
+Application.put_env(:claude_agent_sdk, :max_turns, 10)
+```
+
+**Note:** In an Elixir application, you would configure this in your app's `config/config.exs`:
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+import Config
+
+config :claude_agent_sdk,
+  cli_path: "/path/to/claude",
+  permission_mode: :bypass_permissions,
+  max_turns: 10
+```
+
+## Quick Start: Simple Query
+
+The easiest way to get a response from Claude:
+
+```elixir
+# Get a simple text response
+ClaudeAgent.query_text("What is the capital of France?")
+```
+
+## Structured Outputs
+
+Get validated JSON responses using JSON Schemas. Claude will ensure its response matches your schema exactly:
+
+```elixir
+# Define a JSON Schema for a simple math problem
+schema = %{
+  "type" => "object",
+  "properties" => %{
+    "answer" => %{"type" => "number"},
+    "explanation" => %{"type" => "string"}
+  },
+  "required" => ["answer", "explanation"]
+}
+
+# Query with structured output
+result = ClaudeAgent.query_result(
+  "What is 17 + 25? Provide the answer and a brief explanation.",
+  output_format: %{"type" => "json_schema", "schema" => schema},
+  permission_mode: :bypass_permissions,
+  max_turns: 3
+)
+
+# Access the validated structured output
+IO.puts("Math Problem Result:")
+IO.inspect(result.structured_output, pretty: true)
+IO.puts("\nAnswer: #{result.structured_output["answer"]}")
+IO.puts("Explanation: #{result.structured_output["explanation"]}")
+```
+
+**Key benefits:**
+
+* **Validated**: Output always matches your schema
+* **Type-safe**: Perfect for integration with databases, APIs, or business logic
+* **Tool autonomy**: Claude chooses which tools to use while guaranteeing output format
+
+### Type-Safe Schemas with Ecto + Ostara (Recommended)
+
+For production use, define schemas using Ecto embedded schemas. In a real app, use [Ostara](https://github.com/gridpoint-com/ostara) to auto-generate JSON Schemas:
+
+```elixir
+defmodule CompanyInfo do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  @primary_key false
+  embedded_schema do
+    field(:company_name, :string)
+    field(:founded_year, :integer)
+    field(:headquarters, :string)
+    field(:employee_count, :integer)
+  end
+
+  def changeset(attrs) do
+    %__MODULE__{}
+    |> cast(attrs, [:company_name, :founded_year, :headquarters, :employee_count])
+    |> validate_required([:company_name, :founded_year])
+    |> validate_number(:founded_year, greater_than: 1800)
+  end
+
+  # Helper for this demo - in production, you can use: Ostara.transmute(CompanyInfo)
+  def json_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "company_name" => %{"type" => "string"},
+        "founded_year" => %{"type" => "integer"},
+        "headquarters" => %{"type" => "string"},
+        "employee_count" => %{"type" => "integer"}
+      },
+      "required" => ["company_name", "founded_year"]
+    }
+  end
+end
+
+result = ClaudeAgent.query_result(
+  "Research Anthropic (the AI company) and provide: company name, founded year, headquarters location, and approximate employee count.",
+  output_format: %{"type" => "json_schema", "schema" => CompanyInfo.json_schema()},
+  permission_mode: :bypass_permissions,
+  max_turns: 5
+)
+
+# Validate and cast using Ecto
+case CompanyInfo.changeset(result.structured_output) do
+  %{valid?: true} = changeset ->
+    company = Ecto.Changeset.apply_changes(changeset)
+    IO.puts("\n✅ Valid Company Info (typed struct):")
+    IO.inspect(company, structs: false)
+    IO.puts("\nCompany: #{company.company_name}")
+    IO.puts("Founded: #{company.founded_year}")
+    IO.puts("HQ: #{company.headquarters}")
+
+  %{valid?: false} = changeset ->
+    IO.puts("\n❌ Validation errors:")
+    IO.inspect(changeset.errors)
+end
+```
+
+**Why use Ecto schemas?**
+
+* **Type safety**: Get compile-time checks and IDE autocomplete
+* **Validation**: Built-in changeset validation on top of JSON Schema
+* **Reusability**: Same schema for DB, APIs, and Claude responses
+* **Tooling**: Works with [Ostara](https://github.com/gridpoint-com/ostara) to auto-generate JSON Schemas
+
+> **Comparison with other ecosystems:**
+> 
+> * **Python**: Use [Pydantic](https://docs.pydantic.dev/) models with `.model_json_schema()`
+> * **TypeScript**: Use [Zod](https://zod.dev/) schemas with `zodToJsonSchema()`
+> * **Elixir**: Use Ecto embedded schemas with [Ostara](https://github.com/gridpoint-com/ostara) for JSON Schema generation
+
+### Text Analysis with Enum Constraints
+
+Use enums to constrain possible values:
+
+```elixir
+sentiment_schema = %{
+  "type" => "object",
+  "properties" => %{
+    "sentiment" => %{
+      "type" => "string",
+      "enum" => ["positive", "negative", "neutral"]
+    },
+    "confidence" => %{"type" => "number"},
+    "key_words" => %{
+      "type" => "array",
+      "items" => %{"type" => "string"}
+    }
+  },
+  "required" => ["sentiment", "confidence", "key_words"]
+}
+
+result = ClaudeAgent.query_result(
+  ~s(Analyze the sentiment of this text: "I love learning Elixir! The pattern matching is amazing."),
+  output_format: %{"type" => "json_schema", "schema" => sentiment_schema},
+  permission_mode: :bypass_permissions,
+  max_turns: 3
+)
+
+IO.puts("\n😊 Sentiment Analysis:")
+IO.puts("Sentiment: #{result.structured_output["sentiment"]}")
+IO.puts("Confidence: #{result.structured_output["confidence"]}")
+IO.puts("Key words: #{Enum.join(result.structured_output["key_words"], ", ")}")
+```
+
+### Nested Structured Output with Arrays
+
+Handle complex nested structures:
+
+```elixir
+# Schema for analyzing a list of items
+items_schema = %{
+  "type" => "object",
+  "properties" => %{
+    "items" => %{
+      "type" => "array",
+      "items" => %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{"type" => "string"},
+          "category" => %{"type" => "string"},
+          "price" => %{"type" => "number"}
+        },
+        "required" => ["name", "category", "price"]
+      }
+    },
+    "total_items" => %{"type" => "number"},
+    "total_value" => %{"type" => "number"}
+  },
+  "required" => ["items", "total_items", "total_value"]
+}
+
+result = ClaudeAgent.query_result(
+  """
+  Create a shopping list with these items:
+  - Laptop (electronics, $1200)
+  - Coffee beans (groceries, $15)
+  - Notebook (office supplies, $5)
+  """,
+  output_format: %{"type" => "json_schema", "schema" => items_schema},
+  permission_mode: :bypass_permissions,
+  max_turns: 3
+)
+
+IO.puts("\n🛒 Shopping List:")
+IO.puts("Total items: #{result.structured_output["total_items"]}")
+IO.puts("Total value: $#{result.structured_output["total_value"]}")
+IO.puts("\nItems:")
+
+result.structured_output["items"]
+|> Enum.each(fn item ->
+  IO.puts("  • #{item["name"]} (#{item["category"]}) - $#{item["price"]}")
+end)
+```
+
+## Get Full Result with Metadata
+
+Get detailed information about the response including cost and duration:
+
+```elixir
+result = ClaudeAgent.query_result("What is 2 + 2?")
+
+IO.puts("""
+Answer: #{result.result}
+Cost: $#{result.total_cost_usd}
+Duration: #{result.duration_ms}ms
+Session ID: #{result.session_id}
+""")
+
+result
+```
+
+## Streaming Messages
+
+Stream all messages as they arrive for more control:
+
+```elixir
+alias ClaudeAgent.Types.Messages.{AssistantMessage, SystemMessage, ResultMessage}
+alias ClaudeAgent.Types.ContentBlocks.TextBlock
+
+"Explain pattern matching in Elixir in 2 sentences."
+|> ClaudeAgent.query()
+|> Enum.each(fn
+  %SystemMessage{} = msg ->
+    IO.puts("📍 System: #{msg.subtype}")
+
+  %AssistantMessage{content: blocks} ->
+    Enum.each(blocks, fn
+      %TextBlock{text: text} -> IO.puts("🤖 #{text}")
+      other -> IO.inspect(other, label: "Content Block")
+    end)
+
+  %ResultMessage{} = msg ->
+    IO.puts("\n✅ Done! Cost: $#{msg.total_cost_usd}")
+
+  other ->
+    IO.inspect(other, label: "Message")
+end)
+```
+
+## Using Options
+
+Configure Claude's behavior with options:
+
+```elixir
+ClaudeAgent.query_text(
+  "What's the difference between `=` and `<-` in Elixir?",
+  system_prompt: "You are a helpful Elixir expert. Be concise.",
+  max_turns: 3
+)
+```
+
+## Interactive Client: Multi-turn Conversations
+
+The `Client` module enables stateful, multi-turn conversations where Claude remembers context:
+
+```elixir
+alias ClaudeAgent.Client
+alias ClaudeAgent.Types.Messages.{AssistantMessage, ResultMessage}
+alias ClaudeAgent.Types.ContentBlocks.TextBlock
+
+# Helper to extract text from messages
+extract_text = fn messages ->
+  messages
+  |> Enum.filter(&match?(%AssistantMessage{}, &1))
+  |> Enum.flat_map(& &1.content)
+  |> Enum.filter(&match?(%TextBlock{}, &1))
+  |> Enum.map(& &1.text)
+  |> Enum.join(" ")
+end
+
+# Start client with bypass permissions (for demo purposes)
+{:ok, client} = Client.start_link(permission_mode: :bypass_permissions)
+
+IO.puts("Client started!")
+client
+```
+
+### First Message
+
+```elixir
+# Send first message
+:ok = Client.query(client, "My name is Alice and I'm learning Elixir. Remember this.")
+
+messages = client |> Client.receive_response() |> Enum.to_list()
+IO.puts("📝 Response:")
+IO.puts(extract_text.(messages))
+
+messages
+```
+
+### Follow-up Message (Claude Remembers Context)
+
+```elixir
+# Follow-up - Claude should remember the name
+:ok = Client.query(client, "What is my name and what am I learning?")
+
+messages = client |> Client.receive_response() |> Enum.to_list()
+IO.puts("📝 Response:")
+IO.puts(extract_text.(messages))
+
+messages
+```
+
+### Another Follow-up
+
+```elixir
+# Ask a related question
+:ok = Client.query(client, "Give me one tip for what I'm learning, keeping it brief.")
+
+messages = client |> Client.receive_response() |> Enum.to_list()
+IO.puts("📝 Response:")
+IO.puts(extract_text.(messages))
+
+messages
+```
+
+### Cleanup
+
+```elixir
+# Always disconnect when done
+Client.disconnect(client)
+IO.puts("✅ Client disconnected")
+```
+
+## Tool Usage Example
+
+Claude can use tools like reading files. Here's an example with tool permissions:
+
+```elixir
+# Ask Claude to read a file
+ClaudeAgent.query_text(
+  "Read the mix.exs file and tell me the package name and version.",
+  allowed_tools: ["Read", "Glob"],
+  permission_mode: :bypass_permissions,
+  cwd: File.cwd!()
+)
+```
+
+## Inspect Tool Usage in Detail
+
+See exactly what tools Claude uses:
+
+```elixir
+alias ClaudeAgent.Types.Messages.AssistantMessage
+alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
+
+"What's in the README.md? Summarize in one sentence."
+|> ClaudeAgent.query(
+  allowed_tools: ["Read"],
+  permission_mode: :bypass_permissions,
+  cwd: File.cwd!()
+)
+|> Enum.each(fn
+  %AssistantMessage{content: blocks} ->
+    Enum.each(blocks, fn
+      %TextBlock{text: text} ->
+        IO.puts("💬 Text: #{text}")
+
+      %ToolUseBlock{name: name, input: input} ->
+        IO.puts("🔧 Tool Use: #{name}")
+        IO.inspect(input, label: "   Input", pretty: true)
+
+      %ToolResultBlock{tool_use_id: id, content: content} ->
+        preview = if is_binary(content), do: String.slice(content, 0, 200), else: inspect(content)
+        IO.puts("📋 Tool Result (#{id}):")
+        IO.puts("   #{preview}...")
+
+      other ->
+        IO.inspect(other, label: "Block")
+    end)
+
+  _other ->
+    :ok
+end)
+```
+
+## Server Info
+
+Get information about the Claude Code server capabilities:
+
+```elixir
+{:ok, client} = Client.start_link(permission_mode: :bypass_permissions)
+
+# Must connect first (or call query) before server_info is available
+:ok = Client.connect(client)
+
+{:ok, info} = Client.get_server_info(client)
+
+IO.puts("Server Capabilities:")
+IO.inspect(info, pretty: true)
+
+Client.disconnect(client)
+info
+```
+
+## Error Handling
+
+The SDK provides specific error types:
+
+```elixir
+alias ClaudeAgent.Errors.{CLINotFoundError, ProcessError, JSONDecodeError}
+
+# Example of error handling (this won't fail if CLI is installed)
+try do
+  ClaudeAgent.query_text("Hello!")
+rescue
+  e in CLINotFoundError ->
+    IO.puts("❌ CLI not found: #{e.message}")
+    if e.cli_path, do: IO.puts("   Searched: #{e.cli_path}")
+
+  e in ProcessError ->
+    IO.puts("❌ Process error: #{e.message}")
+    if e.exit_code, do: IO.puts("   Exit code: #{e.exit_code}")
+    if e.stderr, do: IO.puts("   Stderr: #{e.stderr}")
+
+  e in JSONDecodeError ->
+    IO.puts("❌ JSON decode error: #{e.message}")
+end
+```
+
+## Message Types Reference
+
+Here's a quick reference of the message types you'll encounter:
+
+| Type               | Description                            |
+| ------------------ | -------------------------------------- |
+| `SystemMessage`    | System events (init, auth status)      |
+| `AssistantMessage` | Claude's responses with content blocks |
+| `UserMessage`      | User messages (when echoed back)       |
+| `ResultMessage`    | Final result with cost/duration        |
+
+Content blocks within `AssistantMessage`:
+
+| Block Type        | Description                       |
+| ----------------- | --------------------------------- |
+| `TextBlock`       | Plain text response               |
+| `ThinkingBlock`   | Claude's reasoning (when enabled) |
+| `ToolUseBlock`    | Tool invocation details           |
+| `ToolResultBlock` | Result from tool execution        |
+
+## Simple Subagents Example
+
+Subagents allow you to delegate tasks to specialized agents with custom prompts and tool restrictions. This simple example shows the easiest way to use subagents with `query_text`:
+
+```elixir
+alias ClaudeAgent.Subagent
+
+# Define a code reviewer agent
+agents = %{
+  "code-reviewer" => Subagent.new(
+    "Code review specialist",
+    """
+    You are an expert code reviewer. When reviewing code:
+    1. Focus on correctness and potential bugs
+    2. Check for security issues
+    3. Suggest improvements
+    Keep your review concise and actionable.
+    """,
+    tools: ["Read", "Grep"],
+    model: :sonnet
+  )
+}
+
+# Use query_text for a simple response
+result =
+  ClaudeAgent.query_text(
+    "Use the code-reviewer agent to review lib/claude_agent/options.ex",
+    agents: agents,
+    permission_mode: :bypass_permissions,
+    cwd: File.cwd!()
+  )
+
+IO.puts(result)
+```
+
+This is the simplest way to use subagents - just pass the `agents` option to any query function!
+
+## Streaming Subagents Example
+
+For more control and visibility into the subagent workflow, use streaming. This example shows **streaming responses** with clear indicators when subagents are invoked.
+
+```elixir
+alias ClaudeAgent.Subagent
+alias ClaudeAgent.Types.Messages.{AssistantMessage, SystemMessage}
+alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
+
+# Define a code reviewer agent
+agents = %{
+  "code-reviewer" => Subagent.new(
+    "Code review specialist",
+    """
+    You are an expert code reviewer. When reviewing code:
+    1. Focus on correctness and potential bugs
+    2. Check for security issues
+    3. Suggest improvements
+    Keep your review concise and actionable.
+    """,
+    tools: ["Read", "Grep"],
+    model: :sonnet
+  )
+}
+
+# Start a query with the agent configured
+{:ok, client} = Client.start_link(
+  agents: agents,
+  permission_mode: :bypass_permissions,
+  cwd: File.cwd!()
+)
+
+:ok = Client.query(client, "Use the code-reviewer agent to review lib/claude_agent/options.ex")
+
+# Stream messages with visual indicators for subagent calls
+# Track which agent corresponds to which tool_use_id
+agent_names = %{}
+
+client
+|> Client.receive_response()
+|> Enum.reduce(agent_names, fn
+  %SystemMessage{subtype: "init", data: %{"agents" => agent_list}}, acc ->
+    IO.puts("✅ Available agents: #{inspect(agent_list)}\n")
+    acc
+
+  %AssistantMessage{content: blocks, parent_tool_use_id: parent_id}, acc ->
+    # Check if this is from a subagent (has parent_tool_use_id)
+    if parent_id do
+      agent_name = Map.get(acc, parent_id, "unknown")
+      IO.puts("🔸 [#{String.upcase(agent_name)} AGENT RESPONSE]")
+    end
+
+    # Update agent tracking and display blocks
+    new_acc =
+      Enum.reduce(blocks, acc, fn
+        %TextBlock{text: text}, acc ->
+          IO.puts("💬 #{text}\n")
+          acc
+
+        %ToolUseBlock{name: "Task", input: %{"subagent_type" => agent_name}, id: tool_id}, acc ->
+          IO.puts("🚀 INVOKING SUBAGENT: #{agent_name}")
+          IO.puts("   └─ Task tool called to delegate work\n")
+          # Store the mapping of tool_use_id -> agent_name
+          Map.put(acc, tool_id, agent_name)
+
+        %ToolUseBlock{name: name, input: input}, acc ->
+          IO.puts("🔧 Tool: #{name}")
+          IO.puts("   └─ #{inspect(input, limit: :infinity, pretty: true)}\n")
+          acc
+
+        %ToolResultBlock{tool_use_id: _id, content: content, is_error: true}, acc ->
+          preview = if is_binary(content), do: String.slice(content, 0, 200), else: inspect(content)
+          IO.puts("❌ Error: #{preview}\n")
+          acc
+
+        %ToolResultBlock{tool_use_id: _id, content: content}, acc ->
+          preview = if is_binary(content), do: String.slice(content, 0, 150), else: inspect(content)
+          IO.puts("📋 Result: #{preview}...\n")
+          acc
+
+        _other, acc ->
+          acc
+      end)
+
+    new_acc
+
+  _other, acc ->
+    acc
+end)
+
+Client.disconnect(client)
+IO.puts("✅ Done!")
+```
+
+### Advanced: Multiple Agents with Detailed Streaming
+
+Watch multiple subagents work in real-time with detailed output and visual indicators:
+
+```elixir
+alias ClaudeAgent.Subagent
+alias ClaudeAgent.Types.Messages.AssistantMessage
+alias ClaudeAgent.Types.ContentBlocks.{TextBlock, ToolUseBlock, ToolResultBlock}
+
+agents = %{
+  "analyzer" => Subagent.new(
+    "Code structure analyzer",
+    "Analyze code structure and identify patterns. Be brief.",
+    tools: ["Read", "Grep"],
+    model: :haiku
+  ),
+  "security-checker" => Subagent.new(
+    "Security vulnerability checker",
+    "Check for security issues and vulnerabilities. Be concise.",
+    tools: ["Read", "Grep"],
+    model: :haiku
+  )
+}
+
+{:ok, client} = Client.start_link(
+  agents: agents,
+  permission_mode: :bypass_permissions,
+  cwd: File.cwd!()
+)
+
+:ok = Client.query(client, "First use analyzer to check lib/claude_agent.ex structure, then use security-checker to review for issues")
+
+# Stream with detailed subagent tracking
+# Track agent names by tool_use_id
+agent_names = %{}
+
+client
+|> Client.receive_response()
+|> Enum.reduce(agent_names, fn
+  %AssistantMessage{content: blocks, parent_tool_use_id: parent_id}, acc ->
+    # Highlight subagent responses with agent name
+    if parent_id do
+      agent_name = Map.get(acc, parent_id, "unknown")
+      IO.puts("\n┌─── 🔸 #{String.upcase(agent_name)} AGENT OUTPUT ───")
+    end
+
+    # Process blocks and track agent invocations
+    new_acc =
+      Enum.reduce(blocks, acc, fn
+        %TextBlock{text: text}, acc ->
+          IO.puts("💬 #{text}")
+          acc
+
+        %ToolUseBlock{name: "Task", input: %{"subagent_type" => agent_name, "prompt" => prompt}, id: tool_id}, acc ->
+          IO.puts("\n🚀 DELEGATING TO SUBAGENT")
+          IO.puts("   Agent: #{agent_name}")
+          IO.puts("   Task: #{String.slice(prompt, 0, 100)}...")
+          IO.puts("")
+          # Store agent name for this tool_use_id
+          Map.put(acc, tool_id, agent_name)
+
+        %ToolUseBlock{name: name, input: input}, acc ->
+          IO.puts("🔧 #{name}: #{inspect(input)}")
+          acc
+
+        %ToolResultBlock{content: content}, acc when is_binary(content) ->
+          preview = String.slice(content, 0, 100)
+          IO.puts("   ✓ #{preview}...")
+          acc
+
+        _, acc ->
+          acc
+      end)
+
+    if parent_id do
+      IO.puts("└─────────────────────────\n")
+    end
+
+    new_acc
+
+  _, acc ->
+    acc
+end)
+
+Client.disconnect(client)
+IO.puts("\n✅ Complete!")
+```
+
+## SDK MCP Tools (Custom In-Process Tools)
+
+SDK MCP Tools let you create custom tools that run directly in your Elixir application. Unlike external MCP servers, these run in-process with zero IPC overhead.
+
+**IMPORTANT**: SDK MCP tools require `Client` (not `query_text` or `query`) because they use the control protocol for bidirectional communication between the SDK and CLI.
+
+### Weather API Example
+
+Create a mock weather tool and see tool execution in real-time:
+
+```elixir
+alias ClaudeAgent.Mcp.Tool
+alias ClaudeAgent.Client
+
+# Define a mock weather tool
+weather_tool = Tool.from_spec("get_weather", "Get current weather for a city",
+  %{city: :string, country_code: :string},
+  fn args ->
+    city = args["city"]
+    country = args["country_code"]
+    temp = :rand.uniform(30) + 50
+    conditions = Enum.random(["sunny", "cloudy", "rainy", "partly cloudy"])
+    {:ok, "Weather in #{city}, #{country}: #{temp}°F and #{conditions}"}
+  end,
+  required: [:city, :country_code]
+)
+
+weather_server = ClaudeAgent.create_sdk_mcp_server("weather",
+  tools: [weather_tool]
+)
+
+# Start Client (required for SDK MCP)
+{:ok, client} = Client.start_link(
+  mcp_servers: %{"weather" => %{type: :sdk, instance: weather_server}},
+  allowed_tools: ["mcp__weather__get_weather"],
+  permission_mode: :bypass_permissions,
+  max_turns: 5
+)
+
+# Send query asking for multiple cities
+:ok = Client.query(client, "Compare the weather in Tokyo, Japan and London, United Kingdom")
+
+IO.puts("=" |> String.duplicate(70))
+IO.puts("Streaming Response")
+IO.puts("=" |> String.duplicate(70))
+
+# Process messages as they arrive
+client
+|> Client.receive_response()
+|> Enum.each(fn message ->
+  case message do
+    %{__struct__: ClaudeAgent.Types.Messages.AssistantMessage, content: blocks} ->
+      Enum.each(blocks, fn
+        %{__struct__: ClaudeAgent.Types.ContentBlocks.TextBlock, text: text} ->
+          IO.puts("\n💬 Assistant: #{text}")
+
+        %{__struct__: ClaudeAgent.Types.ContentBlocks.ToolUseBlock, name: name, input: input} ->
+          IO.puts("\n🔧 Using tool: #{name}")
+          IO.puts("   City: #{input["city"]}")
+          IO.puts("   Country: #{input["country_code"]}")
+
+        %{__struct__: ClaudeAgent.Types.ContentBlocks.ToolResultBlock, content: content} ->
+          IO.puts("   ✅ #{content}")
+
+        _ -> :ok
+      end)
+
+    %{__struct__: ClaudeAgent.Types.Messages.ResultMessage} = result ->
+      IO.puts("\n📊 Total Cost: $#{result.total_cost_usd}")
+      IO.puts("=" |> String.duplicate(70))
+
+    _ -> :ok
+  end
+end)
+
+# Clean up
+Client.disconnect(client)
+```
+
+### Key Benefits of SDK MCP Tools
+
+* **Performance**: No subprocess overhead - tools run in your app's process
+* **Simple**: No external servers to configure or manage
+* **Debuggable**: Use standard Elixir debugging tools
+* **Stateful**: Tools can access your application's state via closures
+
+### Tool Return Formats
+
+Tools can return simple strings or structured content:
+
+```elixir
+# Simple string response
+{:ok, "The answer is 42"}
+
+# Multiple content blocks
+{:ok, [
+  %{"type" => "text", "text" => "Here's the chart:"},
+  %{"type" => "image", "data" => base64_data, "mimeType" => "image/png"}
+]}
+
+# Error response (e.g., validation failure)
+{:error, "City not found"}
+```
+
+## Cleanup
+
+Make sure to clean up any resources:
+
+```elixir
+# If you have any running clients, disconnect them
+# Client.disconnect(client)
+IO.puts("🧹 Cleanup complete!")
+```
