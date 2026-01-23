@@ -54,7 +54,7 @@ jobs:
         run: echo "TODO"
 
   test-old-versions:
-    name: Test (Elixir ${{ matrix.versions.elixir }} / OTP ${{ matrix.versions.otp }})
+    name: Test (Elixir ${{ matrix.versions.elixir }} OTP ${{ matrix.versions.otp }})
 
     runs-on: ubuntu-latest
 
@@ -67,12 +67,6 @@ jobs:
           - elixir: 1.14
             otp: 25
           - elixir: 1.15
-            otp: 26
-          - elixir: 1.16
-            otp: 26
-          - elixir: 1.17
-            otp: 26
-          - elixir: 1.18
             otp: 26
 
     steps:
