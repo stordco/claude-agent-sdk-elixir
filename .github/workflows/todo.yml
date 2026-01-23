@@ -1,0 +1,80 @@
+name: TODO
+
+on:
+  push:
+    branches: [main, develop]
+
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  credo:
+    name: Credo
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Credo
+        run: echo "TODO"
+
+  dependencies:
+    name: Dependencies
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Unused
+        run: echo "TODO"
+
+  dialyzer:
+    name: Dialyzer
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Dialyzer
+        run: echo "TODO"
+
+  format:
+    name: Format
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Format
+        run: echo "TODO"
+
+  title:
+    name: Title
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Title
+        run: echo "TODO"
+
+  test-old-versions:
+    name: Test (Elixir ${{ matrix.versions.elixir }} / OTP ${{ matrix.versions.otp }})
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        versions:
+          - elixir: 1.13
+            otp: 25
+          - elixir: 1.14
+            otp: 25
+          - elixir: 1.15
+            otp: 26
+          - elixir: 1.16
+            otp: 26
+          - elixir: 1.17
+            otp: 26
+          - elixir: 1.18
+            otp: 26
+
+    steps:
+      - name: Test
+        run: echo "TODO"
